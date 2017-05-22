@@ -1,0 +1,53 @@
+{
+    "corpus": "syn2015",
+    "verticalFile": "/home/tomas/work/data/vertikalysyn2015-100k.txt",
+    "dbFile": "/tmp/metadata-syn2015.db",
+    "encoding": "utf-8",
+    "atomStructure": "p",
+    "selfJoin": {
+        "column": "text_id",
+        "normalizeFn": "IntercorpAtomID"
+    },
+    "structures": {
+        "doc" : [
+            "title",
+            "subtitle",
+            "author",
+            "issue",
+            "publisher",
+            "pubplace",
+            "pubyear",
+            "first_published",
+            "translator",
+            "srclang",
+            "authsex",
+            "transsex",
+            "txtype_group",
+            "txtype",
+            "genre_group",
+            "genre",
+            "medium",
+            "periodicity",
+            "audience",
+            "isbnissn",
+            "biblio",
+            "id"
+        ],
+        "text": [
+            "section",
+            "section_orig",
+            "author",
+            "id"
+        ]
+    },
+    "bibView" : {
+        "cols" : [
+            "doc_id",
+            "doc_title",
+            "doc_author",
+            "doc_issue",
+            "doc_publisher"
+        ],
+        "idAttr" : "doc_id"
+    }
+}
