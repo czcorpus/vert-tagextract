@@ -27,17 +27,24 @@ type stackItem struct {
 
 type structStack struct {
 	lastItem *stackItem
+	size     int
 }
 
 func (s *structStack) Push(item *vertigo.Structure) {
 	tmp := s.lastItem
 	s.lastItem = &stackItem{prev: tmp, value: item}
+	s.size++
 }
 
 func (s *structStack) Pop() *vertigo.Structure {
 	tmp := s.lastItem
 	s.lastItem = s.lastItem.prev
+	s.size--
 	return tmp.value
+}
+
+func (s *structStack) Size() int {
+	return s.size
 }
 
 func (s *structStack) GoThroughAttrs(fn func(structure string, attr string, val string)) {

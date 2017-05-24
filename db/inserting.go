@@ -20,22 +20,16 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo"
 )
 
-func PrepareInsert(database *sql.DB, cols map[string]string, posCount int, wordCount int, itemId string) *sql.Stmt {
-	colNames := make([]string, len(cols))
-	colValues := make([]string, len(cols))
+func prepareInsert(database *sql.DB, cols []string) *sql.Stmt {
 	valReplac := make([]string, len(cols))
-	i := 0
-	for k, v := range cols {
-		colNames[i] = k
-		colValues[i] = v
+	for i := range cols {
 		valReplac[i] = "?"
-		i++
 	}
-	ans, err := database.Prepare(fmt.Sprintf("INSERT INTO item (%s) VALUES (%s)", joinArgs(colNames), joinArgs(valReplac)))
+	ans, err := database.Prepare(fmt.Sprintf("INSERT INTO item (%s) VALUES (%s)", joinArgs(cols), joinArgs(valReplac)))
 	if err != nil {
 		panic(err)
 	}
@@ -43,16 +37,20 @@ func PrepareInsert(database *sql.DB, cols map[string]string, posCount int, wordC
 }
 
 type TTExtractor struct {
-	lineCounter     int
-	database        *sql.DB
-	insertStatement *sql.Stmt
-	stack           structStack
-	atomStruct      string
-	structures      map[string][]string
+	lineCounter        int
+	atomCounter        int
+	tokenInAtomCounter int
+	database           *sql.DB
+	insertStatement    *sql.Stmt
+	stack              *structStack
+	atomStruct         string
+	structures         map[string][]string
+	attrNames          []string
 }
 
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
+	tte.tokenInAtomCounter++
 }
 
 func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
@@ -60,14 +58,49 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
 	tte.lineCounter++
 }
 
-func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
-	if st.Name == tte.atomStruct {
-		fmt.Println(">>> SAVE STRUCT: ", st.Name, st.Attrs)
-		tte.stack.GoThroughAttrs(func(s string, k string, v string) {
-			fmt.Printf("[%s.%s] --> %s\n", s, k, v)
-		})
+func (tte *TTExtractor) acceptAttr(structName string, attrName string) bool {
+	tmp := tte.structures[structName]
+	for _, v := range tmp {
+		if v == attrName {
+			return true
+		}
 	}
+	return false
+}
+
+func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 	tte.stack.Push(st)
+	if st.Name == tte.atomStruct {
+		attrs := make(map[string]interface{})
+		tte.stack.GoThroughAttrs(func(s string, k string, v string) {
+			if tte.acceptAttr(s, k) {
+				attrs[fmt.Sprintf("%s_%s", s, k)] = v
+			}
+		})
+		if tte.atomCounter == 0 {
+			tte.attrNames = make([]string, len(attrs)+2)
+			i := 0
+			for k := range attrs {
+				tte.attrNames[i] = k
+				i++
+			}
+			tte.attrNames[i] = "wordcount"
+			tte.attrNames[i+1] = "poscount"
+			tte.insertStatement = prepareInsert(tte.database, tte.attrNames)
+		}
+		attrs["wordcount"] = 0
+		attrs["poscount"] = tte.tokenInAtomCounter
+		values := make([]interface{}, len(tte.attrNames))
+		for i, n := range tte.attrNames {
+			values[i] = attrs[n]
+		}
+		_, err := tte.insertStatement.Exec(values...)
+		if err != nil {
+			panic(err)
+		}
+		tte.atomCounter++
+		tte.tokenInAtomCounter = 0
+	}
 	tte.lineCounter++
 }
 
@@ -80,5 +113,6 @@ func NewTTExtractor(database *sql.DB, atomStruct string, structures map[string][
 		database:   database,
 		atomStruct: atomStruct,
 		structures: structures,
+		stack:      &structStack{},
 	}
 }
