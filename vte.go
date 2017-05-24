@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/vteconf"
@@ -47,8 +48,8 @@ func main() {
 	}
 
 	tte := db.NewTTExtractor(dbConn, conf.AtomStructure, conf.Structures)
+	t0 := time.Now()
 	tte.Run(parserConf)
-
-	fmt.Println("XXX ", conf)
+	fmt.Printf("Finished in %s seconds.", time.Since(t0))
 
 }
