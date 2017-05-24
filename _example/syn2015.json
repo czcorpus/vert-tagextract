@@ -1,6 +1,6 @@
 {
     "corpus": "syn2015",
-    "verticalFile": "/home/tomas/work/data/vertikalysyn2015-100k.txt",
+    "verticalFile": "/home/tomas/work/data/vertikaly/syn2015-100k.txt",
     "dbFile": "/tmp/metadata-syn2015.db",
     "encoding": "utf-8",
     "atomStructure": "p",
@@ -38,8 +38,12 @@
             "section_orig",
             "author",
             "id"
+        ],
+        "p" : [
+            "type"
         ]
     },
+    "indexedCols": ["doc_title"],
     "bibView" : {
         "cols" : [
             "doc_id",

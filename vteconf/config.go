@@ -39,7 +39,8 @@ type VTEConf struct {
 	AtomStructure string              `json:"atomStructure"`
 	SelfJoin      SelfJoinConf        `json:"selfJoin"`
 	Structures    map[string][]string `json:"structures"`
-	BibView       BibViewConf         `json:"bibViewCols"`
+	IndexedCols   []string            `json:"indexedCols"`
+	BibView       BibViewConf         `json:"bibView"`
 }
 
 func (c *VTEConf) UsesSelfJoin() bool {
