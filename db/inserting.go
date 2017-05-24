@@ -24,7 +24,7 @@ import (
 	"github.com/tomachalek/vertigo"
 )
 
-func prepareInsert(database *sql.DB, cols []string) *sql.Stmt {
+func prepareInsert(database *sql.Tx, cols []string) *sql.Stmt {
 	valReplac := make([]string, len(cols))
 	for i := range cols {
 		valReplac[i] = "?"
@@ -41,6 +41,7 @@ type TTExtractor struct {
 	atomCounter        int
 	tokenInAtomCounter int
 	database           *sql.DB
+	transaction        *sql.Tx
 	insertStatement    *sql.Stmt
 	stack              *structStack
 	atomStruct         string
@@ -86,7 +87,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 			}
 			tte.attrNames[i] = "wordcount"
 			tte.attrNames[i+1] = "poscount"
-			tte.insertStatement = prepareInsert(tte.database, tte.attrNames)
+			tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
 		}
 		attrs["wordcount"] = 0
 		attrs["poscount"] = tte.tokenInAtomCounter
@@ -105,7 +106,15 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 }
 
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
+	tte.database.Exec("PRAGMA synchronous = OFF")
+	tte.database.Exec("PRAGMA journal_mode = MEMORY")
+	var err error
+	tte.transaction, err = tte.database.Begin()
+	if err != nil {
+		panic(err)
+	}
 	vertigo.ParseVerticalFile(conf, tte)
+	tte.transaction.Commit()
 }
 
 func NewTTExtractor(database *sql.DB, atomStruct string, structures map[string][]string) *TTExtractor {
