@@ -47,7 +47,7 @@ func (s *structStack) Size() int {
 	return s.size
 }
 
-func (s *structStack) GoThroughAttrs(fn func(structure string, attr string, val string)) {
+func (s *structStack) forEachAttr(fn func(structure string, attr string, val string)) {
 	st := s.lastItem
 	for st != nil {
 		for k, v := range st.value.Attrs {

@@ -47,6 +47,10 @@ func (c *VTEConf) UsesSelfJoin() bool {
 	return c.SelfJoin.Column != ""
 }
 
+func (c *VTEConf) HasConfiguredBib() bool {
+	return c.BibView.IDAttr != "" && len(c.BibView.Cols) > 0
+}
+
 func LoadConf(confPath string) *VTEConf {
 	rawData, err := ioutil.ReadFile(confPath)
 	if err != nil {

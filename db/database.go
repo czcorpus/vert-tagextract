@@ -19,10 +19,11 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/czcorpus/vert-tagextract/vteconf"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // load the driver
 )
 
 func OpenDatabase(dbPath string) *sql.DB {
@@ -46,7 +47,6 @@ func generateColNames(conf *vteconf.VTEConf) []string {
 			i++
 		}
 	}
-	fmt.Println("total attrs: ", numAttrs)
 	return ans
 }
 
@@ -55,11 +55,12 @@ func joinArgs(args []string) string {
 }
 
 func generateAuxColDefs(hasSelfJoin bool) []string {
-	ans := make([]string, 3)
+	ans := make([]string, 4)
 	ans[0] = "poscount INTEGER"
 	ans[1] = "wordcount INTEGER"
+	ans[2] = "corpus_id TEXT"
 	if hasSelfJoin {
-		ans[2] = "item_id STRING"
+		ans[3] = "item_id STRING"
 
 	} else {
 		ans = ans[:3]
@@ -89,10 +90,15 @@ func CreateBibView(database *sql.DB, conf *vteconf.VTEConf) {
 	}
 }
 
-func createAuxIndices(database *sql.DB, cols []string) {
+func createAuxIndices(database *sql.DB, cols []string) error {
+	var err error
 	for _, c := range cols {
-		database.Exec(fmt.Sprintf("CREATE INDEX %s_idx ON item(%s)", c, c))
+		_, err = database.Exec(fmt.Sprintf("CREATE INDEX %s_idx ON item(%s)", c, c))
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func DropExisting(database *sql.DB) {
@@ -102,20 +108,38 @@ func DropExisting(database *sql.DB) {
 }
 
 func CreateSchema(database *sql.DB, conf *vteconf.VTEConf) {
-	database.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT")
+	var dbErr error
 
+	log.Print("Attempting to create table 'cache'...")
+	_, dbErr = database.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT)")
+	if dbErr != nil {
+		log.Fatal(dbErr)
+	}
+	log.Print("...DONE")
+
+	log.Print("Attempting to create table 'item'...")
 	cols := generateColNames(conf)
 	colsDefs := make([]string, len(cols))
 	for i, col := range cols {
 		colsDefs[i] = fmt.Sprintf("%s TEXT", col)
 	}
 	auxColDefs := generateAuxColDefs(conf.UsesSelfJoin())
-
 	allCollsDefs := append(colsDefs, auxColDefs...)
-	database.Exec(fmt.Sprintf("CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, %s)", joinArgs(allCollsDefs)))
-	if conf.UsesSelfJoin() {
-		database.Exec("CREATE INDEX item_id_idx ON item(item_id)")
+	_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, %s)", joinArgs(allCollsDefs)))
+	if dbErr != nil {
+		log.Fatal(dbErr)
 	}
-	createAuxIndices(database, conf.IndexedCols)
+	log.Print("...DONE")
+	log.Printf("Attempting to create indices...")
+	if conf.UsesSelfJoin() {
+		_, dbErr = database.Exec("CREATE INDEX item_id_idx ON item(item_id)")
+		if dbErr != nil {
+			log.Fatal(dbErr)
+		}
+	}
+	dbErr = createAuxIndices(database, conf.IndexedCols)
+	if dbErr != nil {
+		log.Fatal(dbErr)
+	}
+	log.Print("...DONE")
 }
-
