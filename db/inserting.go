@@ -40,6 +40,7 @@ type TTExtractor struct {
 	lineCounter        int
 	atomCounter        int
 	tokenInAtomCounter int
+	corpusID           string
 	database           *sql.DB
 	transaction        *sql.Tx
 	insertStatement    *sql.Stmt
@@ -73,13 +74,13 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 	tte.stack.Push(st)
 	if st.Name == tte.atomStruct {
 		attrs := make(map[string]interface{})
-		tte.stack.GoThroughAttrs(func(s string, k string, v string) {
+		tte.stack.forEachAttr(func(s string, k string, v string) {
 			if tte.acceptAttr(s, k) {
 				attrs[fmt.Sprintf("%s_%s", s, k)] = v
 			}
 		})
 		if tte.atomCounter == 0 {
-			tte.attrNames = make([]string, len(attrs)+2)
+			tte.attrNames = make([]string, len(attrs)+3)
 			i := 0
 			for k := range attrs {
 				tte.attrNames[i] = k
@@ -87,10 +88,12 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 			}
 			tte.attrNames[i] = "wordcount"
 			tte.attrNames[i+1] = "poscount"
+			tte.attrNames[i+2] = "corpus_id"
 			tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
 		}
 		attrs["wordcount"] = 0
 		attrs["poscount"] = tte.tokenInAtomCounter
+		attrs["corpus_id"] = tte.corpusID
 		values := make([]interface{}, len(tte.attrNames))
 		for i, n := range tte.attrNames {
 			values[i] = attrs[n]
@@ -117,9 +120,10 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	tte.transaction.Commit()
 }
 
-func NewTTExtractor(database *sql.DB, atomStruct string, structures map[string][]string) *TTExtractor {
+func NewTTExtractor(database *sql.DB, corpusID string, atomStruct string, structures map[string][]string) *TTExtractor {
 	return &TTExtractor{
 		database:   database,
+		corpusID:   corpusID,
 		atomStruct: atomStruct,
 		structures: structures,
 		stack:      &structStack{},

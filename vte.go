@@ -18,7 +18,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/czcorpus/vert-tagextract/db"
@@ -30,7 +30,7 @@ func main() {
 	updateOnly := flag.Bool("update", false, "Update an existing schema, do not delete existing rows")
 	flag.Parse()
 	if len(flag.Args()) != 1 {
-		panic("Unknown command, a config file must be specified")
+		log.Fatal("Unknown command, a config file must be specified")
 	}
 	conf := vteconf.LoadConf(flag.Arg(0))
 
@@ -39,7 +39,9 @@ func main() {
 	if !*updateOnly {
 		db.DropExisting(dbConn)
 		db.CreateSchema(dbConn, conf)
-		db.CreateBibView(dbConn, conf)
+		if conf.HasConfiguredBib() {
+			db.CreateBibView(dbConn, conf)
+		}
 	}
 
 	parserConf := &vertigo.ParserConf{
@@ -47,9 +49,8 @@ func main() {
 		StructAttrAccumulator: "nil",
 	}
 
-	tte := db.NewTTExtractor(dbConn, conf.AtomStructure, conf.Structures)
+	tte := db.NewTTExtractor(dbConn, conf.Corpus, conf.AtomStructure, conf.Structures)
 	t0 := time.Now()
 	tte.Run(parserConf)
-	fmt.Printf("Finished in %s seconds.", time.Since(t0))
-
+	log.Printf("Finished in %s seconds.\n", time.Since(t0))
 }
