@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/czcorpus/vert-tagextract/db/colgen"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo"
 )
@@ -48,6 +49,7 @@ type TTExtractor struct {
 	atomStruct         string
 	structures         map[string][]string
 	attrNames          []string
+	colgenFn           colgen.AlignedColGenFn
 }
 
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
@@ -80,7 +82,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 			}
 		})
 		if tte.atomCounter == 0 {
-			tte.attrNames = make([]string, len(attrs)+3)
+			tte.attrNames = make([]string, len(attrs)+4)
 			i := 0
 			for k := range attrs {
 				tte.attrNames[i] = k
@@ -89,11 +91,15 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 			tte.attrNames[i] = "wordcount"
 			tte.attrNames[i+1] = "poscount"
 			tte.attrNames[i+2] = "corpus_id"
+			tte.attrNames[i+3] = "item_id"
 			tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
 		}
 		attrs["wordcount"] = 0
 		attrs["poscount"] = tte.tokenInAtomCounter
 		attrs["corpus_id"] = tte.corpusID
+		if tte.colgenFn != nil {
+			attrs["item_id"] = tte.colgenFn(attrs)
+		}
 		values := make([]interface{}, len(tte.attrNames))
 		for i, n := range tte.attrNames {
 			values[i] = attrs[n]
@@ -120,12 +126,14 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	tte.transaction.Commit()
 }
 
-func NewTTExtractor(database *sql.DB, corpusID string, atomStruct string, structures map[string][]string) *TTExtractor {
+func NewTTExtractor(database *sql.DB, corpusID string, atomStruct string, structures map[string][]string,
+	colgenFn colgen.AlignedColGenFn) *TTExtractor {
 	return &TTExtractor{
 		database:   database,
 		corpusID:   corpusID,
 		atomStruct: atomStruct,
 		structures: structures,
 		stack:      &structStack{},
+		colgenFn:   colgenFn,
 	}
 }

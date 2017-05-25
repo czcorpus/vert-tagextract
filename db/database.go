@@ -83,7 +83,6 @@ func generateViewColDefs(conf *vteconf.BibViewConf) []string {
 
 func CreateBibView(database *sql.DB, conf *vteconf.VTEConf) {
 	colDefs := generateViewColDefs(&conf.BibView)
-	fmt.Println("COL DEFS: ", colDefs)
 	_, err := database.Exec(fmt.Sprintf("CREATE VIEW bibliography AS SELECT %s FROM item", joinArgs(colDefs)))
 	if err != nil {
 		panic(err)
