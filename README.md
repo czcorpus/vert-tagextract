@@ -16,7 +16,7 @@ To prepare data extraction from a specific corpus, a configuration file must be 
     "encoding": "utf-8",
     "atomStructure": "p",
     "selfJoin": {
-        "argColumns": "text_id",
+        "argColumns": ["doc_id", "text_id"],
         "generatorFn": "identity"
     },
     "structures": {
@@ -53,7 +53,7 @@ To prepare data extraction from a specific corpus, a configuration file must be 
 
 Notes:
 
-### indexedCOls
+### indexedCols
 
 This setting can be used to specify additional indices for columns expected to be used heavily
 
