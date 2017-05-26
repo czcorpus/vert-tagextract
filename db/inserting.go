@@ -107,7 +107,12 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 			tte.attrNames[i] = "wordcount"
 			tte.attrNames[i+1] = "poscount"
 			tte.attrNames[i+2] = "corpus_id"
-			tte.attrNames[i+3] = "item_id"
+			if tte.colgenFn != nil {
+				tte.attrNames[i+3] = "item_id"
+
+			} else {
+				tte.attrNames = tte.attrNames[:i+3]
+			}
 			tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
 		}
 		attrs["wordcount"] = 0
