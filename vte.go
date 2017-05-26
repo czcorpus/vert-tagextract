@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 	"time"
 
 	"github.com/czcorpus/vert-tagextract/db"
@@ -28,13 +29,22 @@ import (
 )
 
 func main() {
-	updateOnly := flag.Bool("update", false, "Update an existing schema, do not delete existing rows")
+	updateOnly := flag.Bool("update", false, "Update an existing schema, do not delete existing rows (useful e.g. for Intercorp)")
 	flag.Parse()
 	if len(flag.Args()) != 1 {
 		log.Fatal("Unknown command, a config file must be specified")
 	}
 	conf := vteconf.LoadConf(flag.Arg(0))
 
+	_, ferr := os.Stat(conf.DBFile)
+	if os.IsNotExist(ferr) {
+		if *updateOnly {
+			log.Fatalf("Update flag is set but the database %s does not exist", conf.DBFile)
+		}
+
+	} else if !*updateOnly {
+		log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
+	}
 	dbConn := db.OpenDatabase(conf.DBFile)
 
 	if !*updateOnly {
