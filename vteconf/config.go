@@ -22,8 +22,8 @@ import (
 )
 
 type SelfJoinConf struct {
-	Column      string `json:"column"`
-	NormalizeFn string `json:"normalizeFn"`
+	ArgColumn   string `json:"argColumn"`
+	GeneratorFn string `json:"generatorFn"`
 }
 
 type BibViewConf struct {
@@ -44,7 +44,7 @@ type VTEConf struct {
 }
 
 func (c *VTEConf) UsesSelfJoin() bool {
-	return c.SelfJoin.Column != ""
+	return c.SelfJoin.GeneratorFn != ""
 }
 
 func (c *VTEConf) HasConfiguredBib() bool {

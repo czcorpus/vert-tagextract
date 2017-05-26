@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/czcorpus/vert-tagextract/db"
+	"github.com/czcorpus/vert-tagextract/db/colgen"
 	"github.com/czcorpus/vert-tagextract/vteconf"
 	"github.com/tomachalek/vertigo"
 )
@@ -49,7 +50,14 @@ func main() {
 		StructAttrAccumulator: "nil",
 	}
 
-	tte := db.NewTTExtractor(dbConn, conf.Corpus, conf.AtomStructure, conf.Structures)
+	var fn colgen.AlignedColGenFn
+	if conf.UsesSelfJoin() {
+		fn = func(args map[string]interface{}) string {
+			return colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)(args, conf.SelfJoin.ArgColumn)
+		}
+	}
+
+	tte := db.NewTTExtractor(dbConn, conf.Corpus, conf.AtomStructure, conf.Structures, fn)
 	t0 := time.Now()
 	tte.Run(parserConf)
 	log.Printf("Finished in %s seconds.\n", time.Since(t0))
