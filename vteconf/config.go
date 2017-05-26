@@ -22,8 +22,8 @@ import (
 )
 
 type SelfJoinConf struct {
-	ArgColumn   string `json:"argColumn"`
-	GeneratorFn string `json:"generatorFn"`
+	ArgColumns  []string `json:"argColumns"`
+	GeneratorFn string   `json:"generatorFn"`
 }
 
 type BibViewConf struct {

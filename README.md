@@ -16,8 +16,8 @@ To prepare data extraction from a specific corpus, a configuration file must be 
     "encoding": "utf-8",
     "atomStructure": "p",
     "selfJoin": {
-        "column": "text_id",
-        "normalizeFn": "identity"
+        "argColumns": "text_id",
+        "generatorFn": "identity"
     },
     "structures": {
         "doc" : [
@@ -53,9 +53,19 @@ To prepare data extraction from a specific corpus, a configuration file must be 
 
 Notes:
 
-* *indexedCols* can be used to specify additional indices for columns expected to be used heavily
-* *selfJoin* defines a column used to join rows belonging to different corpora (this is used mainly
-  with the InterCorp);
+### indexedCOls
+
+This setting can be used to specify additional indices for columns expected to be used heavily
+
+### selfJoin
+
+This setting defines a column used to join rows belonging to different corpora (this is used mainly
+with the InterCorp). Argument *generatorFn* contains an identifier of an internal function *vte*
+uses to generate column names (current options are: *empty*, *identity* and *intercorp*).
+Argument *argColumns* contains a list of attributes used as arguments to the *generatorFn*.
+
+E.g. in case we want to create a compound *item_id* identifier from *doc.id*, *text.id* and *p.id*
+we can define *"generatorFn" = "identity"* and  *"argColumns" = ["doc_id", "text_id", "p_id"]*.
 
 ## Running the export process
 

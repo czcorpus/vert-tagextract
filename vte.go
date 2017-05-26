@@ -63,7 +63,7 @@ func main() {
 	var fn colgen.AlignedColGenFn
 	if conf.UsesSelfJoin() {
 		fn = func(args map[string]interface{}) string {
-			return colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)(args, conf.SelfJoin.ArgColumn)
+			return colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)(args, conf.SelfJoin.ArgColumns)
 		}
 	}
 

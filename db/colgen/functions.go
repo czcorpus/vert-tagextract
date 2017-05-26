@@ -18,34 +18,37 @@ package colgen
 
 import (
 	"log"
+	"strings"
 )
 
 type AlignedColGenFn func(map[string]interface{}) string
 
-type AlignedUnboundColGenFn func(map[string]interface{}, string) string
+type AlignedUnboundColGenFn func(map[string]interface{}, []string) string
 
-func Intercorp(attrs map[string]interface{}, useAttr string) string {
-	switch attrs[useAttr].(type) {
-	case string:
-		return attrs[useAttr].(string)[2:]
-	default:
-		log.Fatal("Column generator function error, Intercorp cannot accept non-string values")
-		return ""
+func fetchStringVals(attrs map[string]interface{}, useAttrs []string) []string {
+	ans := make([]string, len(useAttrs))
+	for i, attr := range useAttrs {
+		switch attrs[attr].(type) {
+		case string:
+			ans[i] = attrs[attr].(string)
+		default:
+			log.Fatal("Column generator function error, Intercorp cannot accept non-string values")
+		}
 	}
+	return ans
 }
 
-func Empty(attrs map[string]interface{}, useAttr string) string {
+func Intercorp(attrs map[string]interface{}, useAttrs []string) string {
+	vals := fetchStringVals(attrs, useAttrs)
+	return vals[0][2:]
+}
+
+func Empty(attrs map[string]interface{}, useAttrs []string) string {
 	return ""
 }
 
-func Identity(attrs map[string]interface{}, useAttr string) string {
-	switch attrs[useAttr].(type) {
-	case string:
-		return attrs[useAttr].(string)
-	default:
-		log.Fatal("Column generator function error, Intercorp cannot accept non-string values")
-		return ""
-	}
+func Identity(attrs map[string]interface{}, useAttrs []string) string {
+	return strings.Join(fetchStringVals(attrs, useAttrs), "_")
 }
 
 func GetFuncByName(fnName string) AlignedUnboundColGenFn {
