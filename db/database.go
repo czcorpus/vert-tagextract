@@ -164,7 +164,7 @@ func CreateSchema(database *sql.DB, conf *vteconf.VTEConf) {
 	}
 
 	if conf.UsesSelfJoin() {
-		_, dbErr = database.Exec("CREATE UNIQUE INDEX item_id_idx ON item(item_id)")
+		_, dbErr = database.Exec("CREATE UNIQUE INDEX item_id_corpus_id_idx ON item(item_id, corpus_id)")
 		if dbErr != nil {
 			log.Fatalf("Failed to create index item_id_idx on item(item_id): %s", dbErr)
 		}
