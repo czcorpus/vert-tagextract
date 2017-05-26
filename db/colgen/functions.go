@@ -32,7 +32,7 @@ func fetchStringVals(attrs map[string]interface{}, useAttrs []string) []string {
 		case string:
 			ans[i] = attrs[attr].(string)
 		default:
-			log.Fatal("Column generator function error, Intercorp cannot accept non-string values")
+			log.Fatalf("Column generator function cannot accept non-string values: %v (type %T)", attrs[attr], attrs[attr])
 		}
 	}
 	return ans
