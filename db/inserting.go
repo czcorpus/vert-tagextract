@@ -107,7 +107,12 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 			tte.attrNames[i] = "wordcount"
 			tte.attrNames[i+1] = "poscount"
 			tte.attrNames[i+2] = "corpus_id"
-			tte.attrNames[i+3] = "item_id"
+			if tte.colgenFn != nil {
+				tte.attrNames[i+3] = "item_id"
+
+			} else {
+				tte.attrNames = tte.attrNames[:i+3]
+			}
 			tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
 		}
 		attrs["wordcount"] = 0
@@ -118,7 +123,12 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 		}
 		values := make([]interface{}, len(tte.attrNames))
 		for i, n := range tte.attrNames {
-			values[i] = attrs[n]
+			if attrs[n] != nil {
+				values[i] = attrs[n]
+
+			} else {
+				values[i] = "" // liveattrs plug-in does not like NULLs
+			}
 		}
 		_, err := tte.insertStatement.Exec(values...)
 		if err != nil {

@@ -32,7 +32,7 @@ func fetchStringVals(attrs map[string]interface{}, useAttrs []string) []string {
 		case string:
 			ans[i] = attrs[attr].(string)
 		default:
-			log.Fatalf("Column generator function cannot accept non-string values: %v (type %T)", attrs[attr], attrs[attr])
+			log.Fatalf("Column generator function cannot accept non-string values: %v (key: %s, type %T)", attrs[attr], attr, attrs[attr])
 		}
 	}
 	return ans
