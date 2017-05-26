@@ -58,6 +58,7 @@ func main() {
 	parserConf := &vertigo.ParserConf{
 		VerticalFilePath:      conf.VerticalFile,
 		StructAttrAccumulator: "nil",
+		Encoding:              conf.Encoding,
 	}
 
 	var fn colgen.AlignedColGenFn
