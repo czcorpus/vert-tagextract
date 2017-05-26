@@ -16,6 +16,12 @@
 
 package db
 
+/*
+This file contains all the database operations
+required to create a proper schema for
+liveattrs (tables and their indices, views)
+*/
+
 import (
 	"database/sql"
 	"fmt"
@@ -26,6 +32,8 @@ import (
 	_ "github.com/mattn/go-sqlite3" // load the driver
 )
 
+// OpenDatabase opens a sqlite3 database specified by
+// its filesystem path. In case of an error it panics.
 func OpenDatabase(dbPath string) *sql.DB {
 	var err error
 	if db, err := sql.Open("sqlite3", dbPath); err == nil {
@@ -34,6 +42,11 @@ func OpenDatabase(dbPath string) *sql.DB {
 	panic(err)
 }
 
+// generateColNames produces a list of structural
+// attribute names as used in database
+// (i.e. [structname]_[attr_name]) out of lists
+// of structural attributes defined in the configuration.
+// (see _examples/*.json)
 func generateColNames(conf *vteconf.VTEConf) []string {
 	numAttrs := 1 // 1st = corpus_id
 	for _, v := range conf.Structures {
@@ -54,6 +67,8 @@ func joinArgs(args []string) string {
 	return strings.Join(args, ", ")
 }
 
+// generateAuxColDefs creates definitions for
+// auxiliary columns (num of positions, num of words etc.)
 func generateAuxColDefs(hasSelfJoin bool) []string {
 	ans := make([]string, 4)
 	ans[0] = "poscount INTEGER"
@@ -68,6 +83,8 @@ func generateAuxColDefs(hasSelfJoin bool) []string {
 	return ans
 }
 
+// generateViewColDefs creates definitions for
+// bibliography view
 func generateViewColDefs(conf *vteconf.BibViewConf) []string {
 	ans := make([]string, len(conf.Cols))
 	for i, c := range conf.Cols {
@@ -81,6 +98,8 @@ func generateViewColDefs(conf *vteconf.BibViewConf) []string {
 	return ans
 }
 
+// CreateBibView creates a database view needed
+// by liveattrs to fetch bibliography information.
 func CreateBibView(database *sql.DB, conf *vteconf.VTEConf) {
 	colDefs := generateViewColDefs(&conf.BibView)
 	_, err := database.Exec(fmt.Sprintf("CREATE VIEW bibliography AS SELECT %s FROM item", joinArgs(colDefs)))
@@ -96,27 +115,42 @@ func createAuxIndices(database *sql.DB, cols []string) error {
 		if err != nil {
 			return err
 		}
+		log.Printf("Created custom index %s_idx on item(%s)", c, c)
 	}
 	return nil
 }
 
+// DropExisting drops existing tables/views.
+// It is safe to call this even if one or more
+// of these does not exist.
 func DropExisting(database *sql.DB) {
-	database.Exec("DROP TABLE IF EXISTS cache")
-	database.Exec("DROP VIEW IF EXISTS bibliography")
-	database.Exec("DROP TABLE IF EXISTS item")
-}
-
-func CreateSchema(database *sql.DB, conf *vteconf.VTEConf) {
-	var dbErr error
-
-	log.Print("Attempting to create table 'cache'...")
-	_, dbErr = database.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT)")
-	if dbErr != nil {
-		log.Fatal(dbErr)
+	log.Print("Attempting to drop possible existing tables and views...")
+	var err error
+	_, err = database.Exec("DROP TABLE IF EXISTS cache")
+	if err != nil {
+		log.Fatalf("Failed to drop table 'cache': %s", err)
+	}
+	_, err = database.Exec("DROP VIEW IF EXISTS bibliography")
+	if err != nil {
+		log.Fatalf("Failed to drop view 'bibliography': %s", err)
+	}
+	_, err = database.Exec("DROP TABLE IF EXISTS item")
+	if err != nil {
+		log.Fatalf("Failed to drop table 'item': %s", err)
 	}
 	log.Print("...DONE")
+}
 
-	log.Print("Attempting to create table 'item'...")
+// CreateSchema creates all the required tables, views and indices
+func CreateSchema(database *sql.DB, conf *vteconf.VTEConf) {
+	log.Print("Attempting to create tables and views...")
+
+	var dbErr error
+	_, dbErr = database.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT)")
+	if dbErr != nil {
+		log.Fatalf("Failed to create table 'cache': %s", dbErr)
+	}
+
 	cols := generateColNames(conf)
 	colsDefs := make([]string, len(cols))
 	for i, col := range cols {
@@ -126,19 +160,19 @@ func CreateSchema(database *sql.DB, conf *vteconf.VTEConf) {
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, %s)", joinArgs(allCollsDefs)))
 	if dbErr != nil {
-		log.Fatal(dbErr)
+		log.Fatalf("Failed to create table 'item': %s", dbErr)
 	}
-	log.Print("...DONE")
-	log.Printf("Attempting to create indices...")
+
 	if conf.UsesSelfJoin() {
 		_, dbErr = database.Exec("CREATE INDEX item_id_idx ON item(item_id)")
 		if dbErr != nil {
-			log.Fatal(dbErr)
+			log.Fatalf("Failed to create index item_id_idx on item(item_id): %s", dbErr)
 		}
 	}
 	dbErr = createAuxIndices(database, conf.IndexedCols)
 	if dbErr != nil {
-		log.Fatal(dbErr)
+		log.Fatalf("Failed to create a custom index: %s", dbErr)
 	}
+
 	log.Print("...DONE")
 }

@@ -19,12 +19,15 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo"
 )
 
+// prepareInsert creates a prepared statement for the INSERT
+// operation.
 func prepareInsert(database *sql.Tx, cols []string) *sql.Stmt {
 	valReplac := make([]string, len(cols))
 	for i := range cols {
@@ -37,6 +40,9 @@ func prepareInsert(database *sql.Tx, cols []string) *sql.Stmt {
 	return ans
 }
 
+// TTExtractor handles writing parsed data
+// to a sqlite3 database. Parsed values are
+// received pasivelly by implementing vertigo.LineProcessor
 type TTExtractor struct {
 	lineCounter        int
 	atomCounter        int
@@ -52,16 +58,23 @@ type TTExtractor struct {
 	colgenFn           colgen.AlignedColGenFn
 }
 
+// ProcToken is a part of vertigo.LineProcessor implementation.
+// It is called by Vertigo parser when a token line is encountered.
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 	tte.tokenInAtomCounter++
 }
 
+// ProcStructClose is a part of vertigo.LineProcessor implementation.
+// It is called by Vertigo parser when a closing structure tag is
+// encountered.
 func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
 	tte.stack.Pop()
 	tte.lineCounter++
 }
 
+// acceptAttr tests whether a structural attribute
+// [structName].[attrName] is configured (see _example/*.json) to be imported
 func (tte *TTExtractor) acceptAttr(structName string, attrName string) bool {
 	tmp := tte.structures[structName]
 	for _, v := range tmp {
@@ -72,6 +85,9 @@ func (tte *TTExtractor) acceptAttr(structName string, attrName string) bool {
 	return false
 }
 
+// ProcStruct is a part of vertigo.LineProcessor implementation.
+// It si called by Vertigo parser when an opening structure tag
+// is encountered.
 func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 	tte.stack.Push(st)
 	if st.Name == tte.atomStruct {
@@ -106,7 +122,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 		}
 		_, err := tte.insertStatement.Exec(values...)
 		if err != nil {
-			panic(err)
+			log.Fatalf("Failed to insert data: %s", err)
 		}
 		tte.atomCounter++
 		tte.tokenInAtomCounter = 0
@@ -114,18 +130,28 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 	tte.lineCounter++
 }
 
+// Run starts the parsing and metadata extraction
+// process. The method expects a proper database
+// schema to be ready (see database.go for details).
+// The whole process runs within a transaction which
+// makes sqlite3 inserts a few orders of magnitude
+// faster.
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
+	log.Print("Starting to process the vertical file...")
 	tte.database.Exec("PRAGMA synchronous = OFF")
 	tte.database.Exec("PRAGMA journal_mode = MEMORY")
 	var err error
 	tte.transaction, err = tte.database.Begin()
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to start a database transaction: %s", err)
 	}
 	vertigo.ParseVerticalFile(conf, tte)
 	tte.transaction.Commit()
+	log.Print("...DONE")
 }
 
+// NewTTExtractor is a factory function to
+// instantiate proper TTExtractor.
 func NewTTExtractor(database *sql.DB, corpusID string, atomStruct string, structures map[string][]string,
 	colgenFn colgen.AlignedColGenFn) *TTExtractor {
 	return &TTExtractor{
