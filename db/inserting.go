@@ -155,9 +155,15 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	if err != nil {
 		log.Fatalf("Failed to start a database transaction: %s", err)
 	}
-	vertigo.ParseVerticalFile(conf, tte)
-	tte.transaction.Commit()
-	log.Print("...DONE")
+	parserErr := vertigo.ParseVerticalFile(conf, tte)
+	if parserErr != nil {
+		tte.transaction.Rollback()
+		log.Fatalf("Failed to parse vertical file: %s", parserErr)
+
+	} else {
+		tte.transaction.Commit()
+		log.Print("...DONE")
+	}
 }
 
 // NewTTExtractor is a factory function to
