@@ -6,7 +6,14 @@ for use with corpus search interface [KonText](https://github.com/czcorpus/konte
 
 ## Preparing the process
 
-To prepare data extraction from a specific corpus, a configuration file must be defined:
+To prepare data extraction from a specific corpus, a configuration file must be defined. You can
+start by generating a config template:
+
+```
+vte template syn_v4.json
+```
+
+A fully fledged configuration file may look like this:
 
 ```json
 {
@@ -70,16 +77,16 @@ we can define *"generatorFn" = "identity"* and  *"argColumns" = ["doc_id", "text
 ## Running the export process
 
 ```
-vte path/to/config.json
+vte create path/to/config.json
 ```
 
 Or in case we want to add multiple corpora to a single database
 (e.g. in case of InterCorp):
 
 ```
-vte path/to/config1.json
-vte -update path/to/config2.json
-vte -update path/to/config3.json
+vte create path/to/config1.json
+vte create -update path/to/config2.json
+vte create -update path/to/config3.json
 ...
-vte -update path/to/configN.json
+vte create -update path/to/configN.json
 ```
