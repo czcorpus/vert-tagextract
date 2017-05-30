@@ -56,6 +56,7 @@ type TTExtractor struct {
 	structures         map[string][]string
 	attrNames          []string
 	colgenFn           colgen.AlignedColGenFn
+	currAtomAttrs      map[string]interface{}
 }
 
 // ProcToken is a part of vertigo.LineProcessor implementation.
@@ -71,6 +72,25 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
 	tte.stack.Pop()
 	tte.lineCounter++
+
+	if st.Name == tte.atomStruct {
+		tte.currAtomAttrs["poscount"] = tte.tokenInAtomCounter
+
+		values := make([]interface{}, len(tte.attrNames))
+		for i, n := range tte.attrNames {
+			if tte.currAtomAttrs[n] != nil {
+				values[i] = tte.currAtomAttrs[n]
+
+			} else {
+				values[i] = "" // liveattrs plug-in does not like NULLs
+			}
+		}
+		_, err := tte.insertStatement.Exec(values...)
+		if err != nil {
+			log.Fatalf("Failed to insert data: %s", err)
+		}
+		tte.currAtomAttrs = make(map[string]interface{})
+	}
 }
 
 // acceptAttr tests whether a structural attribute
@@ -91,6 +111,7 @@ func (tte *TTExtractor) acceptAttr(structName string, attrName string) bool {
 func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 	tte.stack.Push(st)
 	if st.Name == tte.atomStruct {
+		tte.tokenInAtomCounter = 0
 		attrs := make(map[string]interface{})
 		tte.stack.forEachAttr(func(s string, k string, v string) {
 			if tte.acceptAttr(s, k) {
@@ -115,27 +136,14 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 			}
 			tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
 		}
-		attrs["wordcount"] = 0
-		attrs["poscount"] = tte.tokenInAtomCounter
+		attrs["wordcount"] = 0 // This value is currently unused
+		attrs["poscount"] = 0  // This value is updated once we hit the closing tag
 		attrs["corpus_id"] = tte.corpusID
 		if tte.colgenFn != nil {
 			attrs["item_id"] = tte.colgenFn(attrs)
 		}
-		values := make([]interface{}, len(tte.attrNames))
-		for i, n := range tte.attrNames {
-			if attrs[n] != nil {
-				values[i] = attrs[n]
-
-			} else {
-				values[i] = "" // liveattrs plug-in does not like NULLs
-			}
-		}
-		_, err := tte.insertStatement.Exec(values...)
-		if err != nil {
-			log.Fatalf("Failed to insert data: %s", err)
-		}
+		tte.currAtomAttrs = attrs
 		tte.atomCounter++
-		tte.tokenInAtomCounter = 0
 	}
 	tte.lineCounter++
 }
