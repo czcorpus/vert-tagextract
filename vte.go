@@ -105,6 +105,7 @@ func main() {
 		fmt.Println("|          (c) Institute of the Czech National Corpus         |")
 		fmt.Println("+-------------------------------------------------------------+")
 		fmt.Printf("\nSupported encodings:\n%s\n", strings.Join(vertigo.SupportedCharsets(), ", "))
+		fmt.Printf("\nSupported selfJoin column generator functions:\n%s\n", strings.Join(colgen.GetFuncList(), ", "))
 		fmt.Println("\nUsage:")
 		fmt.Println("vte create config.json -- run an export configured in config.json")
 		fmt.Println("vte template config.json -- create a half empty sample config config.json")

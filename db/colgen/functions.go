@@ -21,6 +21,14 @@ import (
 	"strings"
 )
 
+var (
+	FuncList = map[string]func(map[string]interface{}, []string) string{
+		"intercorp": intercorp,
+		"identity":  identity,
+		"empty":     empty,
+	}
+)
+
 type AlignedColGenFn func(map[string]interface{}) string
 
 type AlignedUnboundColGenFn func(map[string]interface{}, []string) string
@@ -38,29 +46,34 @@ func fetchStringVals(attrs map[string]interface{}, useAttrs []string) []string {
 	return ans
 }
 
-func Intercorp(attrs map[string]interface{}, useAttrs []string) string {
+func intercorp(attrs map[string]interface{}, useAttrs []string) string {
 	vals := fetchStringVals(attrs, useAttrs)
 	return vals[0][2:]
 }
 
-func Empty(attrs map[string]interface{}, useAttrs []string) string {
+func empty(attrs map[string]interface{}, useAttrs []string) string {
 	return ""
 }
 
-func Identity(attrs map[string]interface{}, useAttrs []string) string {
+func identity(attrs map[string]interface{}, useAttrs []string) string {
 	return strings.Join(fetchStringVals(attrs, useAttrs), "_")
 }
 
 func GetFuncByName(fnName string) AlignedUnboundColGenFn {
-	switch fnName {
-	case "intercorp":
-		return Intercorp
-	case "identity":
-		return Identity
-	case "empty":
-		return Empty
-	default:
-		log.Fatalf("Unknown aligned column generator function: %s", fnName)
-		return nil
+	fn, ok := FuncList[fnName]
+	if ok {
+		return fn
 	}
+	log.Fatalf("Unknown aligned column generator function: %s", fnName)
+	return nil
+}
+
+func GetFuncList() []string {
+	ans := make([]string, len(FuncList))
+	i := 0
+	for k := range FuncList {
+		ans[i] = k
+		i++
+	}
+	return ans
 }
