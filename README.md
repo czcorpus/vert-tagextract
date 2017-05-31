@@ -64,6 +64,8 @@ a path to a vertical file (plain text or *gz*)
 
 ### dbFile
 
+type: *string*
+
 a path of the metadata database file
 
 ### atomStructure
@@ -78,7 +80,7 @@ configured structural attributes to be exported (see the example above).
 
 ### structures
 
-type: *{[key:string]:Array<string>}*
+type: *{[key:string]:Array\<string\>}*
 
 An object containing structures and their respective attributes
 to be exported. Generally, this should be a superset of values found in a respective corpus
@@ -86,7 +88,7 @@ registry file under the *SUBCORPATTRS* key.
 
 ### indexedCols
 
-type: *Array<string>*
+type: *Array\<string\>*
 
 By defualt, *vte* creates indices for primary keys and for the *item_id* (see *selfJoin*) column
 (if defined). In case of a large database it may be a good idea to create additional
@@ -97,7 +99,7 @@ format (e.g. *doc_title* instead of *doc.title*).
 
 ### selfJoin
 
-type: *{argColumns: Array<string>; generatorFn: string}*
+type: *{argColumns: Array\<string\>; generatorFn: string}*
 
 This setting defines a column used to join rows belonging to different corpora (this is used mainly
 with the InterCorp). Argument *generatorFn* contains an identifier of an internal function *vte*
@@ -111,7 +113,7 @@ properly and make the (*corpus_id*, *item_id*) pair unique.
 
 ### bibView
 
-type: *{idAttr: string; cols: Array<string>}*
+type: *{idAttr: string; cols: Array\<string\>}*
 
 This setting defines a database view used to fetch detail about a single "bibliographic unit"
 (e.g. a book). This is optional as it may not apply for some cases (e.g. spoken corpora).
