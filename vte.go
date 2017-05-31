@@ -54,21 +54,21 @@ func dumpNewConf(dstPath string) {
 	f.Write(b)
 }
 
-func exportData(confPath string, updateOnly bool) {
+func exportData(confPath string, appendData bool) {
 	conf := vteconf.LoadConf(confPath)
 
 	_, ferr := os.Stat(conf.DBFile)
 	if os.IsNotExist(ferr) {
-		if updateOnly {
+		if appendData {
 			log.Fatalf("Update flag is set but the database %s does not exist", conf.DBFile)
 		}
 
-	} else if !updateOnly {
+	} else if !appendData {
 		log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
 	}
 	dbConn := db.OpenDatabase(conf.DBFile)
 
-	if !updateOnly {
+	if !appendData {
 		db.DropExisting(dbConn)
 		db.CreateSchema(dbConn, conf)
 		if conf.HasConfiguredBib() {
@@ -120,7 +120,7 @@ func main() {
 		switch flag.Arg(0) {
 		case "create":
 			exportData(flag.Arg(1), false)
-		case "update":
+		case "append":
 			exportData(flag.Arg(1), true)
 		case "template":
 			dumpNewConf(flag.Arg(1))
