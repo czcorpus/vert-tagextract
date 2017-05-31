@@ -96,7 +96,6 @@ func exportData(confPath string, updateOnly bool) {
 }
 
 func main() {
-	updateOnly := flag.Bool("update", false, "Update an existing schema, do not delete existing rows (useful e.g. for Intercorp)")
 	flag.Usage = func() {
 		fmt.Println("\n+-------------------------------------------------------------+")
 		fmt.Println("| Vert-tagextract (vte) - a program for extracting structural |")
@@ -107,9 +106,10 @@ func main() {
 		fmt.Printf("\nSupported encodings:\n%s\n", strings.Join(vertigo.SupportedCharsets(), ", "))
 		fmt.Printf("\nSupported selfJoin column generator functions:\n%s\n", strings.Join(colgen.GetFuncList(), ", "))
 		fmt.Println("\nUsage:")
-		fmt.Println("vte create config.json -- run an export configured in config.json")
-		fmt.Println("vte template config.json -- create a half empty sample config config.json")
-		fmt.Println("(config file should be named after a respective corpus name, e.g. syn_v4.json)")
+		fmt.Println("vte create config.json\n\t(run an export configured in config.json, create a new database)")
+		fmt.Println("vte update config.json\n\t(run an export configured in config.json, update an existing database)")
+		fmt.Println("vte template config.json\n\t(create a half empty sample config config.json)")
+		fmt.Println("\n(config file should be named after a respective corpus name, e.g. syn_v4.json)")
 
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
@@ -119,7 +119,9 @@ func main() {
 	if len(flag.Args()) == 2 {
 		switch flag.Arg(0) {
 		case "create":
-			exportData(flag.Arg(1), *updateOnly)
+			exportData(flag.Arg(1), false)
+		case "update":
+			exportData(flag.Arg(1), true)
 		case "template":
 			dumpNewConf(flag.Arg(1))
 		default:
