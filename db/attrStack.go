@@ -17,8 +17,20 @@
 package db
 
 import (
+	"fmt"
+
 	"github.com/tomachalek/vertigo"
 )
+
+// -----------------------------------------------
+
+type attrAccumulator interface {
+	begin(v *vertigo.Structure)
+	end(name string) *vertigo.Structure
+	forEachAttr(fn func(structure string, attr string, val string))
+}
+
+// -----------------------------------------------
 
 type stackItem struct {
 	prev  *stackItem
@@ -30,13 +42,16 @@ type structStack struct {
 	size     int
 }
 
-func (s *structStack) Push(item *vertigo.Structure) {
+func (s *structStack) begin(item *vertigo.Structure) {
 	tmp := s.lastItem
 	s.lastItem = &stackItem{prev: tmp, value: item}
 	s.size++
 }
 
-func (s *structStack) Pop() *vertigo.Structure {
+func (s *structStack) end(name string) *vertigo.Structure {
+	if s.lastItem.value.Name != name {
+		panic(fmt.Sprintf("Stack error. Expected: %s, got: %s", s.lastItem.value.Name, name))
+	}
 	tmp := s.lastItem
 	s.lastItem = s.lastItem.prev
 	s.size--
@@ -55,4 +70,36 @@ func (s *structStack) forEachAttr(fn func(structure string, attr string, val str
 		}
 		st = st.prev
 	}
+}
+
+func newStructStack() *structStack {
+	return &structStack{}
+}
+
+// -----------------------------------------------
+
+type defaultAccum struct {
+	elms map[string]*vertigo.Structure
+}
+
+func (sa *defaultAccum) begin(v *vertigo.Structure) {
+	sa.elms[v.Name] = v
+}
+
+func (sa *defaultAccum) end(name string) *vertigo.Structure {
+	tmp := sa.elms[name]
+	delete(sa.elms, name)
+	return tmp
+}
+
+func (sa *defaultAccum) forEachAttr(fn func(structure string, attr string, val string)) {
+	for name, structItem := range sa.elms {
+		for attr, val := range structItem.Attrs {
+			fn(name, attr, val)
+		}
+	}
+}
+
+func newDefaultAccum() *defaultAccum {
+	return &defaultAccum{elms: make(map[string]*vertigo.Structure)}
 }
