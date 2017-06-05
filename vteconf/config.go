@@ -32,15 +32,16 @@ type BibViewConf struct {
 }
 
 type VTEConf struct {
-	Corpus        string              `json:"corpus"`
-	VerticalFile  string              `json:"verticalFile"`
-	DBFile        string              `json:"dbFile"`
-	Encoding      string              `json:"encoding"`
-	AtomStructure string              `json:"atomStructure"`
-	SelfJoin      SelfJoinConf        `json:"selfJoin"`
-	Structures    map[string][]string `json:"structures"`
-	IndexedCols   []string            `json:"indexedCols"`
-	BibView       BibViewConf         `json:"bibView"`
+	Corpus          string              `json:"corpus"`
+	VerticalFile    string              `json:"verticalFile"`
+	DBFile          string              `json:"dbFile"`
+	Encoding        string              `json:"encoding"`
+	AtomStructure   string              `json:"atomStructure"`
+	SelfJoin        SelfJoinConf        `json:"selfJoin"`
+	Structures      map[string][]string `json:"structures"`
+	IndexedCols     []string            `json:"indexedCols"`
+	BibView         BibViewConf         `json:"bibView"`
+	StackStructEval bool                `json:"stackStructEval"`
 }
 
 func (c *VTEConf) UsesSelfJoin() bool {

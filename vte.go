@@ -89,7 +89,7 @@ func exportData(confPath string, appendData bool) {
 		}
 	}
 
-	tte := db.NewTTExtractor(dbConn, conf.Corpus, conf.AtomStructure, conf.Structures, fn)
+	tte := db.NewTTExtractor(dbConn, conf.Corpus, conf.AtomStructure, conf.StackStructEval, conf.Structures, fn)
 	t0 := time.Now()
 	tte.Run(parserConf)
 	log.Printf("Finished in %s.\n", time.Since(t0))

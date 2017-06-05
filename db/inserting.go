@@ -51,7 +51,7 @@ type TTExtractor struct {
 	database           *sql.DB
 	transaction        *sql.Tx
 	insertStatement    *sql.Stmt
-	stack              *structStack
+	attrAccum          attrAccumulator
 	atomStruct         string
 	structures         map[string][]string
 	attrNames          []string
@@ -70,7 +70,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 // It is called by Vertigo parser when a closing structure tag is
 // encountered.
 func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
-	tte.stack.Pop()
+	tte.attrAccum.end(st.Name)
 	tte.lineCounter++
 
 	if st.Name == tte.atomStruct {
@@ -109,11 +109,11 @@ func (tte *TTExtractor) acceptAttr(structName string, attrName string) bool {
 // It si called by Vertigo parser when an opening structure tag
 // is encountered.
 func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
-	tte.stack.Push(st)
+	tte.attrAccum.begin(st)
 	if st.Name == tte.atomStruct {
 		tte.tokenInAtomCounter = 0
 		attrs := make(map[string]interface{})
-		tte.stack.forEachAttr(func(s string, k string, v string) {
+		tte.attrAccum.forEachAttr(func(s string, k string, v string) {
 			if tte.acceptAttr(s, k) {
 				attrs[fmt.Sprintf("%s_%s", s, k)] = v
 			}
@@ -176,14 +176,20 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
-func NewTTExtractor(database *sql.DB, corpusID string, atomStruct string, structures map[string][]string,
+func NewTTExtractor(database *sql.DB, corpusID string, atomStruct string, stackEval bool, structures map[string][]string,
 	colgenFn colgen.AlignedColGenFn) *TTExtractor {
-	return &TTExtractor{
+	ans := &TTExtractor{
 		database:   database,
 		corpusID:   corpusID,
 		atomStruct: atomStruct,
 		structures: structures,
-		stack:      &structStack{},
 		colgenFn:   colgenFn,
 	}
+	if stackEval {
+		ans.attrAccum = newStructStack()
+
+	} else {
+		ans.attrAccum = newDefaultAccum()
+	}
+	return ans
 }
