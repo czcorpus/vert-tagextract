@@ -22,6 +22,7 @@ An example configuration file written for corpus *syn_v4* looks like this:
     "dbFile": "/var/opt/kontext/metadata/syn_v4.db",
     "encoding": "utf-8",
     "atomStructure": "text",
+    "stackStructEval": true,
     "selfJoin": {
         "argColumns": ["doc_id", "text_id"],
         "generatorFn": "identity"
@@ -76,6 +77,26 @@ This setting specifies a structure understood as a row in the exported metadata 
 that any nested structures (e.g. *p* within *text*) will be ignored. On the other hand, all the
 ancestor structures (e.g. *doc* in case of *text*) will be processed as long as there are some
 configured structural attributes to be exported (see the example above).
+
+### stackStructEval
+
+type: *boolean*
+
+When *true* then structures within a vertical file are evaluated by a stack-based processor
+which requires the sturctures to be nested properly (e.g. just like in case of XML). If
+*false* then overlapping structures can be in the vertical file:
+
+```sgml
+<foo>
+token1
+<bar>
+token2
+</foo>
+token3
+</bar>
+```
+
+In case you are not sure about your vertical file structure, use *false*.
 
 
 ### structures
