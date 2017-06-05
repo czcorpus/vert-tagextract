@@ -100,7 +100,7 @@ func main() {
 		fmt.Println("\n+-------------------------------------------------------------+")
 		fmt.Println("| Vert-tagextract (vte) - a program for extracting structural |")
 		fmt.Println("|            meta-data from a corpus vertical file            |")
-		fmt.Println("|                         version 0.1                         |")
+		fmt.Println("|                         version 0.2                         |")
 		fmt.Println("|          (c) Institute of the Czech National Corpus         |")
 		fmt.Println("+-------------------------------------------------------------+")
 		fmt.Printf("\nSupported encodings:\n%s\n", strings.Join(vertigo.SupportedCharsets(), ", "))
