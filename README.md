@@ -57,19 +57,31 @@ An example configuration file written for corpus *syn_v4* looks like this:
 
 Configuration items:
 
+* [verticalFile](#conf_verticalFile)
+* [dbFile](#conf_dbFile)
+* [atomStructure](#conf_atomStructure)
+* [stackStructEval](#conf_stackStructEval)
+* [structures](#conf_structures)
+* [indexedCols](#conf_indexedCols)
+* [selfJoin](#conf_selfJoin)
+* [bibView](#conf_bibView)
+
 ### verticalFile
+<a name="conf_verticalFile"></a>
 
 type: *string*
 
 a path to a vertical file (plain text or *gz*)
 
 ### dbFile
+<a name="conf_dbFile"></a>
 
 type: *string*
 
-a path of the metadata database file
+a path of the sqlite3 database file the metadata will be exported to
 
 ### atomStructure
+<a name="conf_atomStructure"></a>
 
 type: *string*
 
@@ -79,6 +91,7 @@ ancestor structures (e.g. *doc* in case of *text*) will be processed as long as 
 configured structural attributes to be exported (see the example above).
 
 ### stackStructEval
+<a name="conf_stackStructEval"></a>
 
 type: *boolean*
 
@@ -98,8 +111,8 @@ token3
 
 In case you are not sure about your vertical file structure, use *false*.
 
-
 ### structures
+<a name="conf_structures"></a>
 
 type: *{[key:string]:Array\<string\>}*
 
@@ -108,6 +121,7 @@ to be exported. Generally, this should be a superset of values found in a respec
 registry file under the *SUBCORPATTRS* key.
 
 ### indexedCols
+<a name="conf_indexedCols"></a>
 
 type: *Array\<string\>*
 
@@ -119,6 +133,7 @@ Please note that the format of structural attribute name matches the metadata co
 format (e.g. *doc_title* instead of *doc.title*).
 
 ### selfJoin
+<a name="conf_selfJoin"></a>
 
 type: *{argColumns: Array\<string\>; generatorFn: string}*
 
@@ -133,6 +148,7 @@ The column format is purely internal matter of KonText - the important thing is 
 properly and make the (*corpus_id*, *item_id*) pair unique.
 
 ### bibView
+<a name="conf_bibView"></a>
 
 type: *{idAttr: string; cols: Array\<string\>}*
 
@@ -144,6 +160,7 @@ This setting defines a database view used to fetch detail about a single "biblio
 
 Please note (again) the format of column names (*doc_title*, not *doc.title*).
 
+
 ## Running the export process
 
 To create a new or replace an existing database use:
@@ -153,14 +170,14 @@ vte create path/to/config.json
 ```
 
 Or in case we want to add multiple corpora to a single database
-(e.g. in case of InterCorp):
+(e.g. in case of *InterCorp*):
 
 ```
 vte create path/to/config1.json
-vte update path/to/config2.json
-vte update path/to/config3.json
+vte append path/to/config2.json
+vte append path/to/config3.json
 ...
-vte update path/to/configN.json
+vte append path/to/configN.json
 ```
 
 In this case, a proper *selfJoin* must be configured for KonText to be able to
