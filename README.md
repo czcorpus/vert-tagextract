@@ -66,22 +66,22 @@ Configuration items:
 * [selfJoin](#conf_selfJoin)
 * [bibView](#conf_bibView)
 
-### verticalFile
 <a name="conf_verticalFile"></a>
+### verticalFile
 
 type: *string*
 
 a path to a vertical file (plain text or *gz*)
 
-### dbFile
 <a name="conf_dbFile"></a>
+### dbFile
 
 type: *string*
 
 a path of the sqlite3 database file the metadata will be exported to
 
-### atomStructure
 <a name="conf_atomStructure"></a>
+### atomStructure
 
 type: *string*
 
@@ -90,8 +90,8 @@ that any nested structures (e.g. *p* within *text*) will be ignored. On the othe
 ancestor structures (e.g. *doc* in case of *text*) will be processed as long as there are some
 configured structural attributes to be exported (see the example above).
 
-### stackStructEval
 <a name="conf_stackStructEval"></a>
+### stackStructEval
 
 type: *boolean*
 
@@ -111,8 +111,8 @@ token3
 
 In case you are not sure about your vertical file structure, use *false*.
 
-### structures
 <a name="conf_structures"></a>
+### structures
 
 type: *{[key:string]:Array\<string\>}*
 
@@ -120,8 +120,8 @@ An object containing structures and their respective attributes
 to be exported. Generally, this should be a superset of values found in a respective corpus
 registry file under the *SUBCORPATTRS* key.
 
-### indexedCols
 <a name="conf_indexedCols"></a>
+### indexedCols
 
 type: *Array\<string\>*
 
@@ -132,8 +132,8 @@ indices for frequently accessed columns (e.g. a title of a document, genre etc.)
 Please note that the format of structural attribute name matches the metadata column name
 format (e.g. *doc_title* instead of *doc.title*).
 
-### selfJoin
 <a name="conf_selfJoin"></a>
+### selfJoin
 
 type: *{argColumns: Array\<string\>; generatorFn: string}*
 
@@ -147,8 +147,8 @@ we can define *"generatorFn" = "identity"* and  *"argColumns" = ["doc_id", "text
 The column format is purely internal matter of KonText - the important thing is to match columns
 properly and make the (*corpus_id*, *item_id*) pair unique.
 
-### bibView
 <a name="conf_bibView"></a>
+### bibView
 
 type: *{idAttr: string; cols: Array\<string\>}*
 
