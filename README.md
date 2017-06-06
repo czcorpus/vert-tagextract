@@ -4,7 +4,21 @@ Vert-tagextract (vte) is a simple program for extracting structural attribute me
 from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
 for use with corpus search interface [KonText](https://github.com/czcorpus/kontext).
 
+* [Preparing the process](#preparing_the_process)
+  * [Example config file](#example_config)
+* [Configuration items](#configuration_items)
+  * [verticalFile](#conf_verticalFile)
+  * [dbFile](#conf_dbFile)
+  * [atomStructure](#conf_atomStructure)
+  * [stackStructEval](#conf_stackStructEval)
+  * [structures](#conf_structures)
+  * [indexedCols](#conf_indexedCols)
+  * [selfJoin](#conf_selfJoin)
+  * [bibView](#conf_bibView)
+* [Running the export process](#running_the_export_process)
+
 ## Preparing the process
+<a name="preparing_the_process"></a>
 
 To prepare data extraction from a specific corpus, a configuration file must be defined. You can
 start by generating a config template:
@@ -12,6 +26,9 @@ start by generating a config template:
 ```
 vte template syn_v4.json
 ```
+
+### Example config
+<a name="example_config"></a>
 
 An example configuration file written for corpus *syn_v4* looks like this:
 
@@ -55,16 +72,8 @@ An example configuration file written for corpus *syn_v4* looks like this:
 }
 ```
 
-Configuration items:
-
-* [verticalFile](#conf_verticalFile)
-* [dbFile](#conf_dbFile)
-* [atomStructure](#conf_atomStructure)
-* [stackStructEval](#conf_stackStructEval)
-* [structures](#conf_structures)
-* [indexedCols](#conf_indexedCols)
-* [selfJoin](#conf_selfJoin)
-* [bibView](#conf_bibView)
+## Configuration items
+<a name="configuration_items"></a>
 
 <a name="conf_verticalFile"></a>
 ### verticalFile
@@ -160,7 +169,7 @@ This setting defines a database view used to fetch detail about a single "biblio
 
 Please note (again) the format of column names (*doc_title*, not *doc.title*).
 
-
+<a name="running_the_export_process"></a>
 ## Running the export process
 
 To create a new or replace an existing database use:
