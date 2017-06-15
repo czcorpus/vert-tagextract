@@ -118,24 +118,6 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 				attrs[fmt.Sprintf("%s_%s", s, k)] = v
 			}
 		})
-		if tte.atomCounter == 0 {
-			tte.attrNames = make([]string, len(attrs)+4)
-			i := 0
-			for k := range attrs {
-				tte.attrNames[i] = k
-				i++
-			}
-			tte.attrNames[i] = "wordcount"
-			tte.attrNames[i+1] = "poscount"
-			tte.attrNames[i+2] = "corpus_id"
-			if tte.colgenFn != nil {
-				tte.attrNames[i+3] = "item_id"
-
-			} else {
-				tte.attrNames = tte.attrNames[:i+3]
-			}
-			tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
-		}
 		attrs["wordcount"] = 0 // This value is currently unused
 		attrs["poscount"] = 0  // This value is updated once we hit the closing tag
 		attrs["corpus_id"] = tte.corpusID
@@ -146,6 +128,35 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 		tte.atomCounter++
 	}
 	tte.lineCounter++
+}
+
+func (tte *TTExtractor) calcNumAttrs() int {
+	ans := 0
+	for _, items := range tte.structures {
+		ans += len(items)
+	}
+	return ans
+}
+
+func (tte *TTExtractor) generateAttrList() []string {
+	attrNames := make([]string, tte.calcNumAttrs()+4)
+	i := 0
+	for s, items := range tte.structures {
+		for _, item := range items {
+			attrNames[i] = fmt.Sprintf("%s_%s", s, item)
+			i++
+		}
+	}
+	attrNames[i] = "wordcount"
+	attrNames[i+1] = "poscount"
+	attrNames[i+2] = "corpus_id"
+	if tte.colgenFn != nil {
+		attrNames[i+3] = "item_id"
+
+	} else {
+		attrNames = attrNames[:i+3]
+	}
+	return attrNames
 }
 
 // Run starts the parsing and metadata extraction
@@ -163,6 +174,10 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	if err != nil {
 		log.Fatalf("Failed to start a database transaction: %s", err)
 	}
+
+	tte.attrNames = tte.generateAttrList()
+	tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
+
 	parserErr := vertigo.ParseVerticalFile(conf, tte)
 	if parserErr != nil {
 		tte.transaction.Rollback()
