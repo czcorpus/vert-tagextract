@@ -28,7 +28,7 @@ type SelfJoinConf struct {
 
 type BibViewConf struct {
 	Cols   []string `json:"cols"`
-	IDAttr string   `json:idAttr"`
+	IDAttr string   `json:"idAttr"`
 }
 
 type VTEConf struct {
