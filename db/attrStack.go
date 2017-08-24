@@ -78,6 +78,11 @@ func newStructStack() *structStack {
 
 // -----------------------------------------------
 
+// defaultAccum is a structure accumulator which
+// does not care about xml-like nesting. But there
+// is a limitation in the sense that one cannot
+// nest a single structure to itself
+// (e.g.: <p>...<p>...</p>..</p>).
 type defaultAccum struct {
 	elms map[string]*vertigo.Structure
 }
