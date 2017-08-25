@@ -48,7 +48,7 @@ func OpenDatabase(dbPath string) *sql.DB {
 // of structural attributes defined in the configuration.
 // (see _examples/*.json)
 func generateColNames(conf *vteconf.VTEConf) []string {
-	numAttrs := 1 // 1st = corpus_id
+	numAttrs := 0
 	for _, v := range conf.Structures {
 		numAttrs += len(v)
 	}
@@ -92,7 +92,7 @@ func generateViewColDefs(conf *vteconf.BibViewConf) []string {
 			ans[i] = c
 
 		} else {
-			ans[i] = fmt.Sprintf("%s as id", c)
+			ans[i] = fmt.Sprintf("%s AS id", c)
 		}
 	}
 	return ans
