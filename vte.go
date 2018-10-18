@@ -77,7 +77,7 @@ func exportData(confPath string, appendData bool) {
 	}
 
 	parserConf := &vertigo.ParserConf{
-		VerticalFilePath:      conf.VerticalFile,
+		InputFilePath:         conf.VerticalFile,
 		StructAttrAccumulator: "nil",
 		Encoding:              conf.Encoding,
 	}
