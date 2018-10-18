@@ -14,11 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package vteconf
+package proc
 
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 )
 
 type SelfJoinConf struct {
@@ -33,15 +34,16 @@ type BibViewConf struct {
 
 type VTEConf struct {
 	Corpus          string              `json:"corpus"`
+	AtomStructure   string              `json:"atomStructure"`
+	StackStructEval bool                `json:"stackStructEval"`
+	Structures      map[string][]string `json:"structures"`
+	PoSTagColumn    int                 `json:"posTagColumn"`
 	VerticalFile    string              `json:"verticalFile"`
 	DBFile          string              `json:"dbFile"`
 	Encoding        string              `json:"encoding"`
-	AtomStructure   string              `json:"atomStructure"`
 	SelfJoin        SelfJoinConf        `json:"selfJoin"`
-	Structures      map[string][]string `json:"structures"`
 	IndexedCols     []string            `json:"indexedCols"`
 	BibView         BibViewConf         `json:"bibView"`
-	StackStructEval bool                `json:"stackStructEval"`
 }
 
 func (c *VTEConf) UsesSelfJoin() bool {
@@ -52,15 +54,35 @@ func (c *VTEConf) HasConfiguredBib() bool {
 	return c.BibView.IDAttr != "" && len(c.BibView.Cols) > 0
 }
 
+func (c *VTEConf) GetCorpus() string {
+	return c.Corpus
+}
+
+func (c *VTEConf) GetAtomStructure() string {
+	return c.AtomStructure
+}
+
+func (c *VTEConf) GetStackStructEval() bool {
+	return c.StackStructEval
+}
+
+func (c *VTEConf) GetStructures() map[string][]string {
+	return c.Structures
+}
+
+func (c *VTEConf) GetPoSTagColumn() int {
+	return c.PoSTagColumn
+}
+
 func LoadConf(confPath string) *VTEConf {
 	rawData, err := ioutil.ReadFile(confPath)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	var conf VTEConf
 	err2 := json.Unmarshal(rawData, &conf)
 	if err2 != nil {
-		panic(err2)
+		log.Fatal(err2)
 	}
 	return &conf
 }
