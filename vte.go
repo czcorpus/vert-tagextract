@@ -27,12 +27,12 @@ import (
 
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
-	"github.com/czcorpus/vert-tagextract/vteconf"
+	"github.com/czcorpus/vert-tagextract/proc"
 	"github.com/tomachalek/vertigo"
 )
 
-func dumpNewConf(dstPath string) {
-	conf := vteconf.VTEConf{}
+func dumpNewConf() {
+	conf := proc.VTEConf{}
 	conf.Encoding = "UTF-8"
 	conf.AtomStructure = "p"
 	conf.Structures = make(map[string][]string)
@@ -42,20 +42,17 @@ func dumpNewConf(dstPath string) {
 	conf.BibView.Cols = []string{"doc_id", "doc_title", "doc_author", "doc_publisher"}
 	conf.BibView.IDAttr = "doc_id"
 	conf.SelfJoin.ArgColumns = []string{}
+	conf.PoSTagColumn = -1
 	b, err := json.MarshalIndent(conf, "", "  ")
 	if err != nil {
 		log.Fatalf("Failed to dump a new config: %s", err)
 	}
-	f, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0664)
-	if err != nil {
-		log.Fatalf("Failed to open file %s for writing", dstPath)
-	}
-	defer f.Close()
-	f.Write(b)
+	fmt.Print(string(b))
+	fmt.Println()
 }
 
 func exportData(confPath string, appendData bool) {
-	conf := vteconf.LoadConf(confPath)
+	conf := proc.LoadConf(confPath)
 
 	_, ferr := os.Stat(conf.DBFile)
 	if os.IsNotExist(ferr) {
@@ -70,9 +67,9 @@ func exportData(confPath string, appendData bool) {
 
 	if !appendData {
 		db.DropExisting(dbConn)
-		db.CreateSchema(dbConn, conf)
+		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.PoSTagColumn)
 		if conf.HasConfiguredBib() {
-			db.CreateBibView(dbConn, conf)
+			db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
 		}
 	}
 
@@ -89,7 +86,7 @@ func exportData(confPath string, appendData bool) {
 		}
 	}
 
-	tte := db.NewTTExtractor(dbConn, conf.Corpus, conf.AtomStructure, conf.StackStructEval, conf.Structures, fn)
+	tte := proc.NewTTExtractor(dbConn, conf, fn)
 	t0 := time.Now()
 	tte.Run(parserConf)
 	log.Printf("Finished in %s.\n", time.Since(t0))
@@ -98,9 +95,9 @@ func exportData(confPath string, appendData bool) {
 func main() {
 	flag.Usage = func() {
 		fmt.Println("\n+-------------------------------------------------------------+")
-		fmt.Println("| Vert-tagextract (vte) - a program for extracting structural |")
-		fmt.Println("|            meta-data from a corpus vertical file            |")
-		fmt.Println("|                         version 0.2                         |")
+		fmt.Println("| Vert-tagextract (vte) - a program for extracting text types |")
+		fmt.Println("|          and PoS tags from a corpus vertical file           |")
+		fmt.Println("|                         version 0.3                         |")
 		fmt.Println("|          (c) Institute of the Czech National Corpus         |")
 		fmt.Println("|         (c) Tomas Machalek tomas.machalek@ff.cuni.cz        |")
 		fmt.Println("+-------------------------------------------------------------+")
@@ -109,28 +106,38 @@ func main() {
 		fmt.Println("\nUsage:")
 		fmt.Println("vte create config.json\n\t(run an export configured in config.json, add data to a new database)")
 		fmt.Println("vte append config.json\n\t(run an export configured in config.json, add data to an existing database)")
-		fmt.Println("vte template config.json\n\t(create a half empty sample config config.json)")
+		fmt.Println("vte template\n\t(create a half empty sample config and write it to stdout)")
 		fmt.Println("\n(config file should be named after a respective corpus name, e.g. syn_v4.json)")
 
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
 	}
 
-	flag.Parse()
-	if len(flag.Args()) == 2 {
-		switch flag.Arg(0) {
-		case "create":
-			exportData(flag.Arg(1), false)
-		case "append":
-			exportData(flag.Arg(1), true)
-		case "template":
-			dumpNewConf(flag.Arg(1))
-		default:
-			log.Fatalf("Unknown command '%s'", flag.Arg(0))
-		}
-
-	} else {
-		log.Fatal("Unknown arguments, an action and a config file must be specified (use -h for help)")
+	createCommand := flag.NewFlagSet("create", flag.ExitOnError)
+	createCommand.Usage = func() {
+		fmt.Println("Usage: vte create conf.json")
 	}
+	appendCommand := flag.NewFlagSet("append", flag.ExitOnError)
+	appendCommand.Usage = func() {
+		fmt.Println("Usage: vte append conf.json")
+	}
+	templateCommand := flag.NewFlagSet("template", flag.ExitOnError)
+	templateCommand.Usage = func() {
+		fmt.Println("Usage: vte template [> conf.json]")
+	}
+	flag.Parse()
 
+	switch os.Args[1] {
+	case "create":
+		createCommand.Parse(os.Args[2:])
+		exportData(createCommand.Arg(0), false)
+	case "append":
+		appendCommand.Parse(os.Args[2:])
+		exportData(appendCommand.Arg(0), true)
+	case "template":
+		templateCommand.Parse(os.Args[2:])
+		dumpNewConf()
+	default:
+		log.Fatalf("Unknown command '%s'", flag.Arg(0))
+	}
 }

@@ -18,9 +18,9 @@ package db
 
 import (
 	"database/sql"
-	"github.com/czcorpus/vert-tagextract/vteconf"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func createDatabase() *sql.DB {
@@ -31,26 +31,15 @@ func createDatabase() *sql.DB {
 	panic(err)
 }
 
-func createVTEConf() *vteconf.VTEConf {
-	c := vteconf.VTEConf{
-		Corpus:        "syn2010",
-		VerticalFile:  "/tmp/foo",
-		DBFile:        "/tmp/foo.db",
-		Encoding:      "utf-8",
-		AtomStructure: "doc",
-		Structures:    make(map[string][]string),
-	}
-	c.Structures["doc"] = []string{"id", "year", "author"}
-	c.Structures["p"] = []string{"num", "style"}
-
-	bc := vteconf.BibViewConf{Cols: []string{"doc_id", "doc_author"}, IDAttr: "doc_id"}
-	c.BibView = bc
-
-	return &c
+func createStructures() map[string][]string {
+	ans := make(map[string][]string)
+	ans["doc"] = []string{"id", "year", "author"}
+	ans["p"] = []string{"num", "style"}
+	return ans
 }
 
-func containsItem(items []string, item string) bool {
-	for _, v := range items {
+func containsItem(list []string, item string) bool {
+	for _, v := range list {
 		if item == v {
 			return true
 		}
@@ -59,8 +48,8 @@ func containsItem(items []string, item string) bool {
 }
 
 func TestGenerateColNames(t *testing.T) {
-	conf := createVTEConf()
-	cols := generateColNames(conf)
+	structs := createStructures()
+	cols := generateColNames(structs)
 	assert.True(t, containsItem(cols, "doc_id"))
 	assert.True(t, containsItem(cols, "doc_year"))
 	assert.True(t, containsItem(cols, "doc_author"))
@@ -70,17 +59,16 @@ func TestGenerateColNames(t *testing.T) {
 }
 
 func TestGenerateViewColDefs(t *testing.T) {
-	conf := createVTEConf()
-	viewCols := generateViewColDefs(&conf.BibView)
+	viewCols := generateViewColDefs([]string{"doc_id", "doc_author"}, "doc_id")
 	assert.Contains(t, viewCols, "doc_id AS id")
 	assert.Contains(t, viewCols, "doc_author")
 	assert.Equal(t, 2, len(viewCols))
 }
 
 func TestCreateSchema(t *testing.T) {
-	conf := createVTEConf()
 	db := createDatabase()
-	CreateSchema(db, conf)
+	structs := createStructures()
+	CreateSchema(db, structs, []string{}, false, 1)
 	// cid name type notnull dflt_value pk
 	res, err := db.Query("PRAGMA table_info(item)")
 	if err != nil {
@@ -136,10 +124,9 @@ func TestDropExisdting(t *testing.T) {
 }
 
 func TestCreateBibView(t *testing.T) {
-	conf := createVTEConf()
 	db := createDatabase()
 	db.Exec("CREATE TABLE item (id INT PRIMARY KEY, doc_id TEXT, doc_year TEXT, doc_author TEXT)")
-	CreateBibView(db, conf)
+	CreateBibView(db, []string{"doc_id", "doc_author"}, "doc_id")
 
 	res, err := db.Query("PRAGMA table_info(bibliography)")
 	if err != nil {

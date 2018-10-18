@@ -28,7 +28,6 @@ import (
 	"log"
 	"strings"
 
-	"github.com/czcorpus/vert-tagextract/vteconf"
 	_ "github.com/mattn/go-sqlite3" // load the driver
 )
 
@@ -42,19 +41,33 @@ func OpenDatabase(dbPath string) *sql.DB {
 	panic(err)
 }
 
+// PrepareInsert creates a prepared statement for an INSERT
+// operation.
+func PrepareInsert(database *sql.Tx, table string, cols []string) *sql.Stmt {
+	valReplac := make([]string, len(cols))
+	for i := range cols {
+		valReplac[i] = "?"
+	}
+	ans, err := database.Prepare(fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, joinArgs(cols), joinArgs(valReplac)))
+	if err != nil {
+		panic(err)
+	}
+	return ans
+}
+
 // generateColNames produces a list of structural
 // attribute names as used in database
 // (i.e. [structname]_[attr_name]) out of lists
 // of structural attributes defined in the configuration.
 // (see _examples/*.json)
-func generateColNames(conf *vteconf.VTEConf) []string {
+func generateColNames(structures map[string][]string) []string {
 	numAttrs := 0
-	for _, v := range conf.Structures {
+	for _, v := range structures {
 		numAttrs += len(v)
 	}
 	ans := make([]string, numAttrs)
 	i := 0
-	for k, v := range conf.Structures {
+	for k, v := range structures {
 		for _, a := range v {
 			ans[i] = fmt.Sprintf("%s_%s", k, a)
 			i++
@@ -85,10 +98,10 @@ func generateAuxColDefs(hasSelfJoin bool) []string {
 
 // generateViewColDefs creates definitions for
 // bibliography view
-func generateViewColDefs(conf *vteconf.BibViewConf) []string {
-	ans := make([]string, len(conf.Cols))
-	for i, c := range conf.Cols {
-		if c != conf.IDAttr {
+func generateViewColDefs(cols []string, idAttr string) []string {
+	ans := make([]string, len(cols))
+	for i, c := range cols {
+		if c != idAttr {
 			ans[i] = c
 
 		} else {
@@ -100,8 +113,8 @@ func generateViewColDefs(conf *vteconf.BibViewConf) []string {
 
 // CreateBibView creates a database view needed
 // by liveattrs to fetch bibliography information.
-func CreateBibView(database *sql.DB, conf *vteconf.VTEConf) {
-	colDefs := generateViewColDefs(&conf.BibView)
+func CreateBibView(database *sql.DB, cols []string, idAttr string) {
+	colDefs := generateViewColDefs(cols, idAttr)
 	_, err := database.Exec(fmt.Sprintf("CREATE VIEW bibliography AS SELECT %s FROM item", joinArgs(colDefs)))
 	if err != nil {
 		panic(err)
@@ -138,11 +151,16 @@ func DropExisting(database *sql.DB) {
 	if err != nil {
 		log.Fatalf("Failed to drop table 'item': %s", err)
 	}
+	_, err = database.Exec("DROP TABLE IF EXISTS postag")
+	if err != nil {
+		log.Fatalf("Failed to drop table 'postag': %s", err)
+	}
 	log.Print("...DONE")
 }
 
 // CreateSchema creates all the required tables, views and indices
-func CreateSchema(database *sql.DB, conf *vteconf.VTEConf) {
+func CreateSchema(database *sql.DB, structures map[string][]string, indexedCols []string, useSelfJoin bool,
+	posTagColumn int) {
 	log.Print("Attempting to create tables and views...")
 
 	var dbErr error
@@ -151,27 +169,38 @@ func CreateSchema(database *sql.DB, conf *vteconf.VTEConf) {
 		log.Fatalf("Failed to create table 'cache': %s", dbErr)
 	}
 
-	cols := generateColNames(conf)
+	cols := generateColNames(structures)
 	colsDefs := make([]string, len(cols))
 	for i, col := range cols {
 		colsDefs[i] = fmt.Sprintf("%s TEXT", col)
 	}
-	auxColDefs := generateAuxColDefs(conf.UsesSelfJoin())
+	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, %s)", joinArgs(allCollsDefs)))
 	if dbErr != nil {
 		log.Fatalf("Failed to create table 'item': %s", dbErr)
 	}
 
-	if conf.UsesSelfJoin() {
+	if useSelfJoin {
 		_, dbErr = database.Exec("CREATE UNIQUE INDEX item_id_corpus_id_idx ON item(item_id, corpus_id)")
 		if dbErr != nil {
 			log.Fatalf("Failed to create index item_id_idx on item(item_id): %s", dbErr)
 		}
 	}
-	dbErr = createAuxIndices(database, conf.IndexedCols)
+	dbErr = createAuxIndices(database, indexedCols)
 	if dbErr != nil {
 		log.Fatalf("Failed to create a custom index: %s", dbErr)
+	}
+
+	if posTagColumn > 0 {
+		_, dbErr = database.Exec("CREATE TABLE postag (value TEXT PRIMARY KEY, corpus_id TEXT, count INTEGER)")
+		if dbErr != nil {
+			log.Fatal("Failed to create table 'postag': ", dbErr)
+		}
+		_, dbErr = database.Exec("CREATE INDEX postag_corpus_id_idx ON postag(corpus_id)")
+		if dbErr != nil {
+			log.Fatalf("Failed to create index postag_corpus_id_idx on postag(corpus_id): %s", dbErr)
+		}
 	}
 
 	log.Print("...DONE")

@@ -14,30 +14,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package db
+package proc
 
 import (
 	"database/sql"
 	"fmt"
 	"log"
 
+	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo"
 )
 
-// prepareInsert creates a prepared statement for the INSERT
-// operation.
-func prepareInsert(database *sql.Tx, cols []string) *sql.Stmt {
-	valReplac := make([]string, len(cols))
-	for i := range cols {
-		valReplac[i] = "?"
-	}
-	ans, err := database.Prepare(fmt.Sprintf("INSERT INTO item (%s) VALUES (%s)", joinArgs(cols), joinArgs(valReplac)))
-	if err != nil {
-		panic(err)
-	}
-	return ans
+// TTEConfProvider defines an object able to
+// provide configuration data for TTExtractor factory.
+type TTEConfProvider interface {
+	GetCorpus() string
+	GetAtomStructure() string
+	GetStackStructEval() bool
+	GetStructures() map[string][]string
+	GetPoSTagColumn() int
 }
 
 // TTExtractor handles writing parsed data
@@ -50,13 +47,37 @@ type TTExtractor struct {
 	corpusID           string
 	database           *sql.DB
 	transaction        *sql.Tx
-	insertStatement    *sql.Stmt
+	docInsert          *sql.Stmt
 	attrAccum          attrAccumulator
 	atomStruct         string
 	structures         map[string][]string
 	attrNames          []string
 	colgenFn           colgen.AlignedColGenFn
 	currAtomAttrs      map[string]interface{}
+	posTagColumn       int
+	posTags            map[string]int
+}
+
+// NewTTExtractor is a factory function to
+// instantiate proper TTExtractor.
+func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
+	colgenFn colgen.AlignedColGenFn) *TTExtractor {
+	ans := &TTExtractor{
+		database:     database,
+		corpusID:     conf.GetCorpus(),
+		atomStruct:   conf.GetAtomStructure(),
+		structures:   conf.GetStructures(),
+		colgenFn:     colgenFn,
+		posTagColumn: conf.GetPoSTagColumn() - 1, // internally we exclude "word" as a separate stuff
+		posTags:      make(map[string]int),
+	}
+	if conf.GetStackStructEval() {
+		ans.attrAccum = newStructStack()
+
+	} else {
+		ans.attrAccum = newDefaultAccum()
+	}
+	return ans
 }
 
 // ProcToken is a part of vertigo.LineProcessor implementation.
@@ -64,6 +85,9 @@ type TTExtractor struct {
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 	tte.tokenInAtomCounter++
+	if tte.posTagColumn > 0 {
+		tte.posTags[tk.Attrs[tte.posTagColumn]]++
+	}
 }
 
 // ProcStructClose is a part of vertigo.LineProcessor implementation.
@@ -85,7 +109,7 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
 				values[i] = "" // liveattrs plug-in does not like NULLs
 			}
 		}
-		_, err := tte.insertStatement.Exec(values...)
+		_, err := tte.docInsert.Exec(values...)
 		if err != nil {
 			log.Fatalf("Failed to insert data: %s", err)
 		}
@@ -159,6 +183,13 @@ func (tte *TTExtractor) generateAttrList() []string {
 	return attrNames
 }
 
+func (tte *TTExtractor) insertPosTags() {
+	ins := db.PrepareInsert(tte.transaction, "postag", []string{"value", "corpus_id", "count"})
+	for value, count := range tte.posTags {
+		ins.Exec(value, tte.corpusID, count)
+	}
+}
+
 // Run starts the parsing and metadata extraction
 // process. The method expects a proper database
 // schema to be ready (see database.go for details).
@@ -176,7 +207,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	}
 
 	tte.attrNames = tte.generateAttrList()
-	tte.insertStatement = prepareInsert(tte.transaction, tte.attrNames)
+	tte.docInsert = db.PrepareInsert(tte.transaction, "item", tte.attrNames)
 
 	parserErr := vertigo.ParseVerticalFile(conf, tte)
 	if parserErr != nil {
@@ -184,27 +215,15 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 		log.Fatalf("Failed to parse vertical file: %s", parserErr)
 
 	} else {
-		tte.transaction.Commit()
 		log.Print("...DONE")
+		if tte.posTagColumn > 0 {
+			log.Print("Saving PoS tags into the database...")
+			tte.insertPosTags()
+			log.Print("...DONE")
+		}
+		err = tte.transaction.Commit()
+		if err != nil {
+			log.Fatal("Failed to commit database transaction: ", err)
+		}
 	}
-}
-
-// NewTTExtractor is a factory function to
-// instantiate proper TTExtractor.
-func NewTTExtractor(database *sql.DB, corpusID string, atomStruct string, stackEval bool, structures map[string][]string,
-	colgenFn colgen.AlignedColGenFn) *TTExtractor {
-	ans := &TTExtractor{
-		database:   database,
-		corpusID:   corpusID,
-		atomStruct: atomStruct,
-		structures: structures,
-		colgenFn:   colgenFn,
-	}
-	if stackEval {
-		ans.attrAccum = newStructStack()
-
-	} else {
-		ans.attrAccum = newDefaultAccum()
-	}
-	return ans
 }
