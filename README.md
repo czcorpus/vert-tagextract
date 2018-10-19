@@ -1,7 +1,7 @@
 # Vert-tagextract
 
 Vert-tagextract (vte) is a simple program for extracting structural attribute meta-data
-from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
+and (optionally) PoS tag variants from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
 for use with corpus search interface [KonText](https://github.com/czcorpus/kontext).
 
 * [Preparing the process](#preparing_the_process)
@@ -15,6 +15,7 @@ for use with corpus search interface [KonText](https://github.com/czcorpus/konte
   * [indexedCols](#conf_indexedCols)
   * [selfJoin](#conf_selfJoin)
   * [bibView](#conf_bibView)
+  * [posTagColumn](#conf_postagcolumn)
 * [Running the export process](#running_the_export_process)
 
 ## Preparing the process
@@ -24,7 +25,7 @@ To prepare data extraction from a specific corpus, a configuration file must be 
 start by generating a config template:
 
 ```
-vte template syn_v4.json
+vte template > syn_v4.json
 ```
 
 ### Example config
@@ -68,7 +69,8 @@ An example configuration file written for corpus *syn_v4* looks like this:
             "doc_author"
         ],
         "idAttr" : "doc_id"
-    }
+    },
+    "posTagColumn": 2
 }
 ```
 
@@ -168,6 +170,24 @@ This setting defines a database view used to fetch detail about a single "biblio
     * *cols* specifies columns displayed in bibliographic unit detail
 
 Please note (again) the format of column names (*doc_title*, not *doc.title*).
+
+<a name="conf_postagcolumn"></a>
+### posTagColumn
+
+type: *number*
+
+If a value greater than zero is provided, then *vte* will also extract PoS tag
+information along with number of occurrences of each variant. The value must
+represent a column index (starting from zero) within a respective vertical file.
+E.g. in case of *word, lemma, tag* columns, the value is *2*.
+
+The data are stored into a separate table *postag*. This can be used to generate
+lists of tags for KonText's *taghelper* plug-in. For this purpose,
+script *scripts/postag2file.py* is available:
+
+```
+python scripts/postag2file.py path/to/generated/database
+```
 
 <a name="running_the_export_process"></a>
 ## Running the export process
