@@ -86,7 +86,12 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 	tte.tokenInAtomCounter++
 	if tte.posTagColumn > 0 {
-		tte.posTags[tk.Attrs[tte.posTagColumn]]++
+		if tte.posTagColumn < len(tk.Attrs) {
+			tte.posTags[tk.Attrs[tte.posTagColumn]]++
+
+		} else {
+			log.Printf("WARNING: cannot fetch PoS tag from line %d (%s)", tte.lineCounter, tk.Attrs)
+		}
 	}
 }
 
