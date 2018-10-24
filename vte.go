@@ -55,18 +55,20 @@ func exportData(confPath string, appendData bool) {
 	conf := proc.LoadConf(confPath)
 
 	_, ferr := os.Stat(conf.DBFile)
-	if os.IsNotExist(ferr) {
-		if appendData {
-			log.Fatalf("Update flag is set but the database %s does not exist", conf.DBFile)
-		}
+	if os.IsNotExist(ferr) && appendData {
+		log.Fatalf("Update flag is set but the database %s does not exist", conf.DBFile)
+	}
 
-	} else if !appendData {
+	if !appendData {
 		log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
 	}
+
 	dbConn := db.OpenDatabase(conf.DBFile)
 
 	if !appendData {
-		db.DropExisting(dbConn)
+		if !os.IsNotExist(ferr) {
+			db.DropExisting(dbConn)
+		}
 		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.PoSTagColumn)
 		if conf.HasConfiguredBib() {
 			db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
