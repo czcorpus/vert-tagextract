@@ -85,7 +85,7 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 	tte.tokenInAtomCounter++
-	if tte.posTagColumn > 0 {
+	if tte.posTagColumn > -1 {
 		if tte.posTagColumn < len(tk.Attrs) {
 			tte.posTags[tk.Attrs[tte.posTagColumn]]++
 
