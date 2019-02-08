@@ -221,7 +221,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 
 	} else {
 		log.Print("...DONE")
-		if tte.posTagColumn > 0 {
+		if tte.posTagColumn > -1 {
 			log.Print("Saving PoS tags into the database...")
 			tte.insertPosTags()
 			log.Print("...DONE")
