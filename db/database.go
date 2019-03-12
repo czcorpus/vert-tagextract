@@ -151,16 +151,27 @@ func DropExisting(database *sql.DB) {
 	if err != nil {
 		log.Fatalf("Failed to drop table 'item': %s", err)
 	}
-	_, err = database.Exec("DROP TABLE IF EXISTS postag")
+	_, err = database.Exec("DROP TABLE IF EXISTS colcounts")
 	if err != nil {
-		log.Fatalf("Failed to drop table 'postag': %s", err)
+		log.Fatalf("Failed to drop table 'colcounts': %s", err)
 	}
 	log.Print("...DONE")
 }
 
+// GenerateColCountNames creates a list of general column names
+// for positional attributes we would like to count. E.g. in
+// case we want [0, 1, 3] (this can be something like 'word', 'lemma' )
+func GenerateColCountNames(colCount []int) []string {
+	columns := make([]string, len(colCount))
+	for i, v := range colCount {
+		columns[i] = fmt.Sprintf("col%d", v)
+	}
+	return columns
+}
+
 // CreateSchema creates all the required tables, views and indices
 func CreateSchema(database *sql.DB, structures map[string][]string, indexedCols []string, useSelfJoin bool,
-	posTagColumn int) {
+	countColumns []int) {
 	log.Print("Attempting to create tables and views...")
 
 	var dbErr error
@@ -192,14 +203,20 @@ func CreateSchema(database *sql.DB, structures map[string][]string, indexedCols 
 		log.Fatalf("Failed to create a custom index: %s", dbErr)
 	}
 
-	if posTagColumn > 0 {
-		_, dbErr = database.Exec("CREATE TABLE postag (value TEXT PRIMARY KEY, corpus_id TEXT, count INTEGER)")
-		if dbErr != nil {
-			log.Fatal("Failed to create table 'postag': ", dbErr)
+	if len(countColumns) > 0 {
+		columns := GenerateColCountNames(countColumns)
+		colDefs := GenerateColCountNames(countColumns)
+		for i, c := range colDefs {
+			colDefs[i] = c + " TEXT"
 		}
-		_, dbErr = database.Exec("CREATE INDEX postag_corpus_id_idx ON postag(corpus_id)")
+		_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE colcounts (%s, corpus_id TEXT, count INTEGER, PRIMARY KEY(%s))",
+			strings.Join(colDefs, ", "), strings.Join(columns, ", ")))
 		if dbErr != nil {
-			log.Fatalf("Failed to create index postag_corpus_id_idx on postag(corpus_id): %s", dbErr)
+			log.Fatal("Failed to create table 'colcounts': ", dbErr)
+		}
+		_, dbErr = database.Exec("CREATE INDEX colcounts_corpus_id_idx ON colcounts(corpus_id)")
+		if dbErr != nil {
+			log.Fatalf("Failed to create index colcounts_corpus_id_idx on colcounts(corpus_id): %s", dbErr)
 		}
 	}
 

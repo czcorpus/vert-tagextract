@@ -70,7 +70,7 @@ An example configuration file written for corpus *syn_v4* looks like this:
         ],
         "idAttr" : "doc_id"
     },
-    "posTagColumn": 2
+    "countColumns": [0, 1, 3]
 }
 ```
 
