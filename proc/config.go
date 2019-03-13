@@ -22,28 +22,41 @@ import (
 	"log"
 )
 
+// SelfJoinConf contains information about aligned
+// structural attributes (e.g. sentences from two
+// languages).
 type SelfJoinConf struct {
 	ArgColumns  []string `json:"argColumns"`
 	GeneratorFn string   `json:"generatorFn"`
 }
 
+// BibViewConf is a sub-configuration for
+// bibliographic data.
 type BibViewConf struct {
 	Cols   []string `json:"cols"`
 	IDAttr string   `json:"idAttr"`
 }
 
+// VTEConf holds configuration for a concrete
+// data extraction task.
 type VTEConf struct {
 	Corpus          string              `json:"corpus"`
 	AtomStructure   string              `json:"atomStructure"`
 	StackStructEval bool                `json:"stackStructEval"`
 	Structures      map[string][]string `json:"structures"`
-	PoSTagColumn    int                 `json:"posTagColumn"`
-	VerticalFile    string              `json:"verticalFile"`
-	DBFile          string              `json:"dbFile"`
-	Encoding        string              `json:"encoding"`
-	SelfJoin        SelfJoinConf        `json:"selfJoin"`
-	IndexedCols     []string            `json:"indexedCols"`
-	BibView         BibViewConf         `json:"bibView"`
+
+	// ColumnCounts configures positional attributes (referred by their
+	// column position) we want to count. This can be used to extract
+	// all the unique PoS tags or frequency information about words/lemmas.
+	// If omitted then the function is disabled.
+	CountColumns []int `json:"countColumns"`
+
+	VerticalFile string       `json:"verticalFile"`
+	DBFile       string       `json:"dbFile"`
+	Encoding     string       `json:"encoding"`
+	SelfJoin     SelfJoinConf `json:"selfJoin"`
+	IndexedCols  []string     `json:"indexedCols"`
+	BibView      BibViewConf  `json:"bibView"`
 }
 
 func (c *VTEConf) UsesSelfJoin() bool {
@@ -70,8 +83,8 @@ func (c *VTEConf) GetStructures() map[string][]string {
 	return c.Structures
 }
 
-func (c *VTEConf) GetPoSTagColumn() int {
-	return c.PoSTagColumn
+func (c *VTEConf) GetCountColumns() []int {
+	return c.CountColumns
 }
 
 func LoadConf(confPath string) *VTEConf {

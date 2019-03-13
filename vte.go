@@ -42,7 +42,7 @@ func dumpNewConf() {
 	conf.BibView.Cols = []string{"doc_id", "doc_title", "doc_author", "doc_publisher"}
 	conf.BibView.IDAttr = "doc_id"
 	conf.SelfJoin.ArgColumns = []string{}
-	conf.PoSTagColumn = -1
+	conf.CountColumns = []int{}
 	b, err := json.MarshalIndent(conf, "", "  ")
 	if err != nil {
 		log.Fatalf("Failed to dump a new config: %s", err)
@@ -69,7 +69,7 @@ func exportData(confPath string, appendData bool) {
 		if !os.IsNotExist(ferr) {
 			db.DropExisting(dbConn)
 		}
-		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.PoSTagColumn)
+		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.CountColumns)
 		if conf.HasConfiguredBib() {
 			db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
 		}

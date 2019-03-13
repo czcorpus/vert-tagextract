@@ -34,7 +34,7 @@ type TTEConfProvider interface {
 	GetAtomStructure() string
 	GetStackStructEval() bool
 	GetStructures() map[string][]string
-	GetPoSTagColumn() int
+	GetCountColumns() []int
 }
 
 // TTExtractor handles writing parsed data
@@ -54,8 +54,8 @@ type TTExtractor struct {
 	attrNames          []string
 	colgenFn           colgen.AlignedColGenFn
 	currAtomAttrs      map[string]interface{}
-	posTagColumn       int
-	posTags            map[string]int
+	countColumns       []int
+	colCounts          map[string]*ColumnCounter
 }
 
 // NewTTExtractor is a factory function to
@@ -68,8 +68,8 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		atomStruct:   conf.GetAtomStructure(),
 		structures:   conf.GetStructures(),
 		colgenFn:     colgenFn,
-		posTagColumn: conf.GetPoSTagColumn() - 1, // internally we exclude "word" as a separate stuff
-		posTags:      make(map[string]int),
+		countColumns: conf.GetCountColumns(),
+		colCounts:    make(map[string]*ColumnCounter),
 	}
 	if conf.GetStackStructEval() {
 		ans.attrAccum = newStructStack()
@@ -85,13 +85,14 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 	tte.tokenInAtomCounter++
-	if tte.posTagColumn > -1 {
-		if tte.posTagColumn < len(tk.Attrs) {
-			tte.posTags[tk.Attrs[tte.posTagColumn]]++
+	key := mkTupleKey(tk, tte.countColumns)
+	cnt, ok := tte.colCounts[key]
+	if !ok {
+		cnt = newColumnCounter(tk, tte.countColumns)
+		tte.colCounts[key] = cnt
 
-		} else {
-			log.Printf("WARNING: cannot fetch PoS tag from line %d (%s)", tte.lineCounter, tk.Attrs)
-		}
+	} else {
+		cnt.IncCount()
 	}
 }
 
@@ -188,10 +189,17 @@ func (tte *TTExtractor) generateAttrList() []string {
 	return attrNames
 }
 
-func (tte *TTExtractor) insertPosTags() {
-	ins := db.PrepareInsert(tte.transaction, "postag", []string{"value", "corpus_id", "count"})
-	for value, count := range tte.posTags {
-		ins.Exec(value, tte.corpusID, count)
+func (tte *TTExtractor) insertCounts() {
+	colItems := append(db.GenerateColCountNames(tte.countColumns), "corpus_id", "count")
+	ins := db.PrepareInsert(tte.transaction, "colcounts", colItems)
+	for _, count := range tte.colCounts {
+		args := make([]interface{}, len(count.values)+2)
+		for i, c := range count.values {
+			args[i] = c
+		}
+		args[len(count.values)] = tte.corpusID
+		args[len(count.values)+1] = count.count
+		ins.Exec(args...)
 	}
 }
 
@@ -221,9 +229,9 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 
 	} else {
 		log.Print("...DONE")
-		if tte.posTagColumn > -1 {
-			log.Print("Saving PoS tags into the database...")
-			tte.insertPosTags()
+		if len(tte.countColumns) > 0 {
+			log.Print("Saving defined positional attributes counts into the database...")
+			tte.insertCounts()
 			log.Print("...DONE")
 		}
 		err = tte.transaction.Commit()
