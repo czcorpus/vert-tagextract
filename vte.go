@@ -98,8 +98,8 @@ func main() {
 	flag.Usage = func() {
 		fmt.Println("\n+-------------------------------------------------------------+")
 		fmt.Println("| Vert-tagextract (vte) - a program for extracting text types |")
-		fmt.Println("|          and PoS tags from a corpus vertical file           |")
-		fmt.Println("|                         version 0.3                         |")
+		fmt.Println("|       and pos. attributes  from a corpus vertical file      |")
+		fmt.Println("|                         version 0.4                         |")
 		fmt.Println("|          (c) Institute of the Czech National Corpus         |")
 		fmt.Println("|         (c) Tomas Machalek tomas.machalek@ff.cuni.cz        |")
 		fmt.Println("+-------------------------------------------------------------+")

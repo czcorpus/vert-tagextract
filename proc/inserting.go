@@ -23,6 +23,7 @@ import (
 
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
+	"github.com/czcorpus/vert-tagextract/ptcount"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo"
 )
@@ -35,6 +36,7 @@ type TTEConfProvider interface {
 	GetStackStructEval() bool
 	GetStructures() map[string][]string
 	GetCountColumns() []int
+	GetCalcARF() bool
 }
 
 // TTExtractor handles writing parsed data
@@ -44,6 +46,7 @@ type TTExtractor struct {
 	lineCounter        int
 	atomCounter        int
 	tokenInAtomCounter int
+	tokenCounter       int
 	corpusID           string
 	database           *sql.DB
 	transaction        *sql.Tx
@@ -55,7 +58,8 @@ type TTExtractor struct {
 	colgenFn           colgen.AlignedColGenFn
 	currAtomAttrs      map[string]interface{}
 	countColumns       []int
-	colCounts          map[string]*ColumnCounter
+	calcARF            bool
+	colCounts          map[string]*ptcount.ColumnCounter
 }
 
 // NewTTExtractor is a factory function to
@@ -69,7 +73,8 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		structures:   conf.GetStructures(),
 		colgenFn:     colgenFn,
 		countColumns: conf.GetCountColumns(),
-		colCounts:    make(map[string]*ColumnCounter),
+		calcARF:      conf.GetCalcARF(),
+		colCounts:    make(map[string]*ptcount.ColumnCounter),
 	}
 	if conf.GetStackStructEval() {
 		ans.attrAccum = newStructStack()
@@ -80,15 +85,24 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	return ans
 }
 
+func (tte *TTExtractor) GetNumTokens() int {
+	return tte.tokenCounter
+}
+
+func (tte *TTExtractor) GetColCounts() map[string]*ptcount.ColumnCounter {
+	return tte.colCounts
+}
+
 // ProcToken is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a token line is encountered.
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 	tte.tokenInAtomCounter++
-	key := mkTupleKey(tk, tte.countColumns)
+	tte.tokenCounter = tk.Idx
+	key := ptcount.MkTupleKey(tk, tte.countColumns)
 	cnt, ok := tte.colCounts[key]
 	if !ok {
-		cnt = newColumnCounter(tk, tte.countColumns)
+		cnt = ptcount.NewColumnCounter(tk, tte.countColumns)
 		tte.colCounts[key] = cnt
 
 	} else {
@@ -190,15 +204,21 @@ func (tte *TTExtractor) generateAttrList() []string {
 }
 
 func (tte *TTExtractor) insertCounts() {
-	colItems := append(db.GenerateColCountNames(tte.countColumns), "corpus_id", "count")
+	colItems := append(db.GenerateColCountNames(tte.countColumns), "corpus_id", "count", "arf")
 	ins := db.PrepareInsert(tte.transaction, "colcounts", colItems)
 	for _, count := range tte.colCounts {
-		args := make([]interface{}, len(count.values)+2)
-		for i, c := range count.values {
-			args[i] = c
+		args := make([]interface{}, count.Width()+3)
+		count.MapTuple(func(v string, i int) {
+			args[i] = v
+		})
+		args[count.Width()] = tte.corpusID
+		args[count.Width()+1] = count.Count()
+		if count.HasARF() {
+			args[count.Width()+2] = count.ARF().ARF
+
+		} else {
+			args[count.Width()+2] = -1
 		}
-		args[len(count.values)] = tte.corpusID
-		args[len(count.values)+1] = count.count
 		ins.Exec(args...)
 	}
 }
@@ -230,6 +250,17 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	} else {
 		log.Print("...DONE")
 		if len(tte.countColumns) > 0 {
+
+			if tte.calcARF {
+				log.Print("####### 2nd run - calculating ARF ###################")
+				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.GetNumTokens(), tte.countColumns)
+				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
+				if parserErr != nil {
+					log.Fatal("ERROR: ", parserErr)
+
+				}
+				arfCalc.Finalize()
+			}
 			log.Print("Saving defined positional attributes counts into the database...")
 			tte.insertCounts()
 			log.Print("...DONE")
