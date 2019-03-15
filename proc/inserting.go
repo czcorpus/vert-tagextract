@@ -20,10 +20,12 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	"github.com/czcorpus/vert-tagextract/ptcount"
+	"github.com/czcorpus/vert-tagextract/ptcount/modders"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo"
 )
@@ -36,6 +38,7 @@ type TTEConfProvider interface {
 	GetStackStructEval() bool
 	GetStructures() map[string][]string
 	GetCountColumns() []int
+	GetCountColMod() []string
 	GetCalcARF() bool
 }
 
@@ -58,6 +61,7 @@ type TTExtractor struct {
 	colgenFn           colgen.AlignedColGenFn
 	currAtomAttrs      map[string]interface{}
 	countColumns       []int
+	columnModders      []*modders.ModderChain
 	calcARF            bool
 	colCounts          map[string]*ptcount.ColumnCounter
 }
@@ -67,14 +71,25 @@ type TTExtractor struct {
 func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	colgenFn colgen.AlignedColGenFn) *TTExtractor {
 	ans := &TTExtractor{
-		database:     database,
-		corpusID:     conf.GetCorpus(),
-		atomStruct:   conf.GetAtomStructure(),
-		structures:   conf.GetStructures(),
-		colgenFn:     colgenFn,
-		countColumns: conf.GetCountColumns(),
-		calcARF:      conf.GetCalcARF(),
-		colCounts:    make(map[string]*ptcount.ColumnCounter),
+		database:      database,
+		corpusID:      conf.GetCorpus(),
+		atomStruct:    conf.GetAtomStructure(),
+		structures:    conf.GetStructures(),
+		colgenFn:      colgenFn,
+		countColumns:  conf.GetCountColumns(),
+		calcARF:       conf.GetCalcARF(),
+		colCounts:     make(map[string]*ptcount.ColumnCounter),
+		columnModders: make([]*modders.ModderChain, len(conf.GetCountColumns())),
+	}
+	for i, m := range conf.GetCountColMod() {
+		values := strings.Split(m, ":")
+		if len(values) > 0 {
+			mod := make([]modders.Modder, 0, len(values))
+			for _, v := range values {
+				mod = append(mod, modders.ModderFactory(v))
+			}
+			ans.columnModders[i] = modders.NewModderChain(mod)
+		}
 	}
 	if conf.GetStackStructEval() {
 		ans.attrAccum = newStructStack()
@@ -99,10 +114,16 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 	tte.tokenInAtomCounter++
 	tte.tokenCounter = tk.Idx
-	key := ptcount.MkTupleKey(tk, tte.countColumns)
+
+	colTuple := make([]string, len(tte.countColumns))
+	for i, idx := range tte.countColumns {
+		v := tk.PosAttrByIndex(idx)
+		colTuple[i] = tte.columnModders[i].Mod(v)
+	}
+	key := ptcount.MkTupleKey(colTuple)
 	cnt, ok := tte.colCounts[key]
 	if !ok {
-		cnt = ptcount.NewColumnCounter(tk, tte.countColumns)
+		cnt = ptcount.NewColumnCounter(colTuple)
 		tte.colCounts[key] = cnt
 
 	} else {
@@ -253,7 +274,8 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 
 			if tte.calcARF {
 				log.Print("####### 2nd run - calculating ARF ###################")
-				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.GetNumTokens(), tte.countColumns)
+				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.countColumns, tte.GetNumTokens(),
+					tte.columnModders)
 				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
 				if parserErr != nil {
 					log.Fatal("ERROR: ", parserErr)

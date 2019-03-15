@@ -82,16 +82,7 @@ func (c *ColumnCounter) IncCount() {
 }
 
 // NewColumnCounter creates a new token tuple with count = 1
-func NewColumnCounter(token *vertigo.Token, countColumns []int) *ColumnCounter {
-	values := make([]string, len(countColumns))
-	for i, v := range countColumns {
-		if v == 0 {
-			values[i] = strings.ToLower(token.Word)
-
-		} else {
-			values[i] = strings.ToLower(token.Attrs[v-1])
-		}
-	}
+func NewColumnCounter(values []string) *ColumnCounter {
 	return &ColumnCounter{
 		count:  1,
 		values: values,
@@ -100,15 +91,6 @@ func NewColumnCounter(token *vertigo.Token, countColumns []int) *ColumnCounter {
 
 // MkTupleKey creates a string key out of provided list of column values.
 // This is used internally to countn
-func MkTupleKey(token *vertigo.Token, countColumns []int) string {
-	ans := make([]string, len(countColumns))
-	for i, v := range countColumns {
-		if v == 0 {
-			ans[i] = strings.ToLower(token.Word)
-
-		} else {
-			ans[i] = strings.ToLower(token.Attrs[v-1])
-		}
-	}
-	return strings.Join(ans, "")
+func MkTupleKey(values []string) string {
+	return strings.Join(values, "")
 }

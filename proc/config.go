@@ -49,8 +49,9 @@ type VTEConf struct {
 	// column position) we want to count. This can be used to extract
 	// all the unique PoS tags or frequency information about words/lemmas.
 	// If omitted then the function is disabled.
-	CountColumns []int `json:"countColumns"`
-	CalcARF      bool  `json:"calcARF"`
+	CountColumns []int    `json:"countColumns"`
+	CountColMod  []string `json:"countColMod"`
+	CalcARF      bool     `json:"calcARF"`
 
 	VerticalFile string       `json:"verticalFile"`
 	DBFile       string       `json:"dbFile"`
@@ -70,6 +71,10 @@ func (c *VTEConf) HasConfiguredBib() bool {
 
 func (c *VTEConf) GetCorpus() string {
 	return c.Corpus
+}
+
+func (c *VTEConf) GetCountColMod() []string {
+	return c.CountColMod
 }
 
 func (c *VTEConf) GetCalcARF() bool {
