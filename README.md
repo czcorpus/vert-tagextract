@@ -16,6 +16,7 @@ for use with corpus search interface [KonText](https://github.com/czcorpus/konte
   * [selfJoin](#conf_selfJoin)
   * [bibView](#conf_bibView)
   * [countColumns](#conf_countColumns)
+  * [countColMod](#conf_countColMod)
   * [calcARF](#conf_calcARF)
 * [Running the export process](#running_the_export_process)
 
@@ -72,6 +73,7 @@ An example configuration file written for corpus *syn_v4* looks like this:
         "idAttr" : "doc_id"
     },
     "countColumns": [0, 1, 3],
+    "countColMod": ["toLower", "toLower", "firstChar"],
     "calcARF": true
 }
 ```
@@ -191,6 +193,18 @@ For this purpose, script *scripts/postag2file.py* is available:
 ```
 python scripts/postag2file.py path/to/generated/database
 ```
+
+<a name="conf_countColMod"></a>
+### countColMod
+
+type: *Array&lt;string|null&gt;*
+
+It is also possible to define value modification function(s) per individual
+extracted token columns. Full length of *countColumns* must be used. Columns
+without value modifications should contain *null*.
+
+Available functions: *toLower*, *firstChar*, null (= identity is used)
+
 
 <a name="conf_calcARF"></a>
 ### calcARF

@@ -19,7 +19,9 @@ package ptcount
 import (
 	"fmt"
 	"log"
+	"math"
 
+	"github.com/czcorpus/vert-tagextract/ptcount/modders"
 	"github.com/tomachalek/vertigo"
 )
 
@@ -31,11 +33,11 @@ import (
 // min is a single-purpose min function
 // where we compare float (= avg. distance)
 // with int (= actual distance)
-func min(v1 float32, v2 int) float32 {
-	if v1 < float32(v2) {
+func min(v1 float64, v2 int) float64 {
+	if v1 < float64(v2) {
 		return v1
 	}
-	return float32(v2)
+	return float64(v2)
 }
 
 // WordARF is used as an attribute of ColumnCounter
@@ -47,7 +49,7 @@ func min(v1 float32, v2 int) float32 {
 // but it needs less memory compared with single pass
 // method.
 type WordARF struct {
-	ARF        float32
+	ARF        float64
 	FirstIdx   int
 	PrevTokIdx int
 }
@@ -60,23 +62,32 @@ func (ws WordARF) String() string {
 // [tuple_uniq_key] => ColumnCounter pairs we
 // obtain in the 1st pass.
 type ARFCalculator struct {
-	countColumns []int
-	counts       map[string]*ColumnCounter
-	numTokens    int
+	countColumns  []int
+	counts        map[string]*ColumnCounter
+	numTokens     int
+	columnModders []*modders.ModderChain
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
-func NewARFCalculator(counts map[string]*ColumnCounter, numTokens int, countColumns []int) *ARFCalculator {
+func NewARFCalculator(counts map[string]*ColumnCounter, countColumns []int, numTokens int,
+	columnModders []*modders.ModderChain) *ARFCalculator {
 	return &ARFCalculator{
-		numTokens:    numTokens,
-		counts:       counts,
-		countColumns: countColumns,
+		numTokens:     numTokens,
+		counts:        counts,
+		countColumns:  countColumns,
+		columnModders: columnModders,
 	}
 }
 
 // ProcToken is called by vertigo parser when a token is encountered
 func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token) {
-	key := MkTupleKey(tk, arfc.countColumns)
+	colTuple := make([]string, len(arfc.countColumns))
+	for i, idx := range arfc.countColumns {
+		v := tk.PosAttrByIndex(idx)
+		colTuple[i] = arfc.columnModders[i].Mod(v)
+	}
+
+	key := MkTupleKey(colTuple)
 	cnt, ok := arfc.counts[key]
 	if !ok {
 		log.Print("ERROR: token not found")
@@ -86,7 +97,7 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token) {
 		cnt.AddARF(tk)
 	}
 	if cnt.ARF().PrevTokIdx > -1 {
-		cnt.ARF().ARF += min(float32(arfc.numTokens)/float32(cnt.Count()), tk.Idx-cnt.ARF().PrevTokIdx)
+		cnt.ARF().ARF += min(float64(arfc.numTokens)/float64(cnt.Count()), tk.Idx-cnt.ARF().PrevTokIdx)
 	}
 	cnt.ARF().PrevTokIdx = tk.Idx
 }
@@ -97,9 +108,9 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token) {
 func (arfc *ARFCalculator) Finalize() {
 	for k, val := range arfc.counts {
 		cnt := arfc.counts[k]
-		avgDist := float32(arfc.numTokens) / float32(cnt.Count())
+		avgDist := float64(arfc.numTokens) / float64(cnt.Count())
 		val.ARF().ARF += min(avgDist, val.ARF().FirstIdx+arfc.numTokens-val.ARF().PrevTokIdx)
-		val.ARF().ARF /= avgDist
+		val.ARF().ARF = math.Round(val.ARF().ARF/avgDist*100) / 100.0
 	}
 }
 
