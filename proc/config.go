@@ -50,6 +50,7 @@ type VTEConf struct {
 	// all the unique PoS tags or frequency information about words/lemmas.
 	// If omitted then the function is disabled.
 	CountColumns []int `json:"countColumns"`
+	CalcARF      bool  `json:"calcARF"`
 
 	VerticalFile string       `json:"verticalFile"`
 	DBFile       string       `json:"dbFile"`
@@ -69,6 +70,10 @@ func (c *VTEConf) HasConfiguredBib() bool {
 
 func (c *VTEConf) GetCorpus() string {
 	return c.Corpus
+}
+
+func (c *VTEConf) GetCalcARF() bool {
+	return c.CalcARF
 }
 
 func (c *VTEConf) GetAtomStructure() string {

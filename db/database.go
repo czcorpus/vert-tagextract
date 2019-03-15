@@ -209,7 +209,7 @@ func CreateSchema(database *sql.DB, structures map[string][]string, indexedCols 
 		for i, c := range colDefs {
 			colDefs[i] = c + " TEXT"
 		}
-		_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE colcounts (%s, corpus_id TEXT, count INTEGER, PRIMARY KEY(%s))",
+		_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE colcounts (%s, corpus_id TEXT, count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
 			strings.Join(colDefs, ", "), strings.Join(columns, ", ")))
 		if dbErr != nil {
 			log.Fatal("Failed to create table 'colcounts': ", dbErr)

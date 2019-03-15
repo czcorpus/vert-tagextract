@@ -20,6 +20,6 @@ import sys
 if __name__ == '__main__':
     db = sqlite3.connect(sys.argv[1])
     c = db.cursor()
-    c.execute('SELECT value FROM postag ORDER BY value')
+    c.execute('SELECT value FROM colcounts ORDER BY value')
     for v in c.fetchall():
         print(v[0])

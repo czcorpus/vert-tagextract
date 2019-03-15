@@ -15,7 +15,8 @@ for use with corpus search interface [KonText](https://github.com/czcorpus/konte
   * [indexedCols](#conf_indexedCols)
   * [selfJoin](#conf_selfJoin)
   * [bibView](#conf_bibView)
-  * [posTagColumn](#conf_postagcolumn)
+  * [countColumns](#conf_countColumns)
+  * [calcARF](#conf_calcARF)
 * [Running the export process](#running_the_export_process)
 
 ## Preparing the process
@@ -70,7 +71,8 @@ An example configuration file written for corpus *syn_v4* looks like this:
         ],
         "idAttr" : "doc_id"
     },
-    "countColumns": [0, 1, 3]
+    "countColumns": [0, 1, 3],
+    "calcARF": true
 }
 ```
 
@@ -171,23 +173,36 @@ This setting defines a database view used to fetch detail about a single "biblio
 
 Please note (again) the format of column names (*doc_title*, not *doc.title*).
 
-<a name="conf_postagcolumn"></a>
-### posTagColumn
+<a name="conf_countColumns"></a>
+### countColumns
 
-type: *number*
+type: *Array&lt;number&gt;*
 
-If a value greater than zero is provided, then *vte* will also extract PoS tag
-information along with number of occurrences of each variant. The value must
-represent a column index (starting from zero) within a respective vertical file.
-E.g. in case of *word, lemma, tag* columns, the value is *2*.
+If a non-empty array is provided, then *vte* will also extract the defined
+columns (referred by their position starting from left and indexed from zero)
+along with number of occurrences of each variant (i.e. all the unique combinations
+for defined columns - e.g. "word"+"lemma"+"pos" and their respective absolute frequencies).
 
-The data are stored into a separate table *postag*. This can be used to generate
-lists of tags for KonText's *taghelper* plug-in. For this purpose,
-script *scripts/postag2file.py* is available:
+The data are stored into a separate table *colcounts*.
+
+This can be used e.g. to generate lists of unique PoS tags for KonText's *taghelper* plug-in.
+For this purpose, script *scripts/postag2file.py* is available:
 
 ```
 python scripts/postag2file.py path/to/generated/database
 ```
+
+<a name="conf_calcARF"></a>
+### calcARF
+
+type: boolean
+
+If true and if *countColumns* is also defined then *vte* will also calculate
+[ARF](http://wiki.korpus.cz/doku.php/en:pojmy:arf). Such a calculation requires
+a 2nd pass of the vertical file so the whole process consumes roughly twice
+as much time compared with non-ARF processing.
+
+
 
 <a name="running_the_export_process"></a>
 ## Running the export process

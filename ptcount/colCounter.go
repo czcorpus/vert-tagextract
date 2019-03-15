@@ -13,7 +13,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package proc
+package ptcount
 
 import (
 	"strings"
@@ -26,6 +26,54 @@ import (
 type ColumnCounter struct {
 	count  int
 	values []string
+	arf    *WordARF // can be nil
+}
+
+// Width says how many columns are used for
+// unique records in the result
+// (e.g. [word, lemma, pos] means width of 3)
+func (c *ColumnCounter) Width() int {
+	return len(c.values)
+}
+
+// HasARF tests whether ARF calculation
+// storage is present. If it is not then
+// it means either the job configuration
+// does not want ARF to be calculated of
+// that it is not set for the specific
+// record yet.
+func (c *ColumnCounter) HasARF() bool {
+	return c.arf != nil
+}
+
+// AddARF creates a new helper record to
+// calculate ARF for the record.
+func (c *ColumnCounter) AddARF(tk *vertigo.Token) {
+	c.arf = &WordARF{
+		ARF:        0,
+		PrevTokIdx: -1,
+		FirstIdx:   tk.Idx,
+	}
+}
+
+// ARF returns ARF helper record
+func (c *ColumnCounter) ARF() *WordARF {
+	return c.arf
+}
+
+// MapTuple calls the provided function on all
+// of stored columns from vertical file
+// (e.g. fn([word]) then fn([lemma]) then fn([pos]))
+func (c *ColumnCounter) MapTuple(fn func(item string, i int)) {
+	for i, v := range c.values {
+		fn(v, i)
+	}
+}
+
+// Count tells how many occurences of the
+// tuple has been found.
+func (c *ColumnCounter) Count() int {
+	return c.count
 }
 
 // IncCount increase number of occurences for the token tuple
@@ -33,8 +81,8 @@ func (c *ColumnCounter) IncCount() {
 	c.count++
 }
 
-// newColumnCounter creates a new token tuple with count = 1
-func newColumnCounter(token *vertigo.Token, countColumns []int) *ColumnCounter {
+// NewColumnCounter creates a new token tuple with count = 1
+func NewColumnCounter(token *vertigo.Token, countColumns []int) *ColumnCounter {
 	values := make([]string, len(countColumns))
 	for i, v := range countColumns {
 		if v == 0 {
@@ -50,9 +98,9 @@ func newColumnCounter(token *vertigo.Token, countColumns []int) *ColumnCounter {
 	}
 }
 
-// mkTupleKey creates a string key out of provided list of column values.
+// MkTupleKey creates a string key out of provided list of column values.
 // This is used internally to countn
-func mkTupleKey(token *vertigo.Token, countColumns []int) string {
+func MkTupleKey(token *vertigo.Token, countColumns []int) string {
 	ans := make([]string, len(countColumns))
 	for i, v := range countColumns {
 		if v == 0 {
