@@ -1,7 +1,7 @@
 # Vert-tagextract
 
 Vert-tagextract (vte) is a simple program for extracting structural attribute meta-data
-and (optionally) PoS tag variants from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
+and optionally unique rows (along with frequency/ARF information) for defined columns from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
 for use with corpus search interface [KonText](https://github.com/czcorpus/kontext).
 
 * [Preparing the process](#preparing_the_process)
