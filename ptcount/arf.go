@@ -110,7 +110,7 @@ func (arfc *ARFCalculator) Finalize() {
 		cnt := arfc.counts[k]
 		avgDist := float64(arfc.numTokens) / float64(cnt.Count())
 		val.ARF().ARF += min(avgDist, val.ARF().FirstIdx+arfc.numTokens-val.ARF().PrevTokIdx)
-		val.ARF().ARF = math.Round(val.ARF().ARF/avgDist*100) / 100.0
+		val.ARF().ARF = math.Round(val.ARF().ARF/avgDist*1000) / 1000.0
 	}
 }
 
