@@ -1,24 +1,31 @@
 # Vert-tagextract
 
-Vert-tagextract (vte) is a simple program for extracting structural attribute meta-data
-and optionally unique rows (along with frequency/ARF information) for defined columns from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
-for use with corpus search interface [KonText](https://github.com/czcorpus/kontext).
+Vert-tagextract (vte) is a program for **extracting structural attribute meta-data**
+and **word frequency** information (ipm, ARF)
+from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
+to a **SQL database**.
 
-* [Preparing the process](#preparing_the_process)
-  * [Example config file](#example_config)
-* [Configuration items](#configuration_items)
-  * [verticalFile](#conf_verticalFile)
-  * [dbFile](#conf_dbFile)
-  * [atomStructure](#conf_atomStructure)
-  * [stackStructEval](#conf_stackStructEval)
-  * [structures](#conf_structures)
-  * [indexedCols](#conf_indexedCols)
-  * [selfJoin](#conf_selfJoin)
-  * [bibView](#conf_bibView)
-  * [countColumns](#conf_countColumns)
-  * [countColMod](#conf_countColMod)
-  * [calcARF](#conf_calcARF)
-* [Running the export process](#running_the_export_process)
+The meta-data database part is used by [KonText](https://github.com/czcorpus/kontext) for its *liveattrs* plug-in.
+The complete word frequency database is used by [Word at a Glance](https://github.com/czcorpus/wdglance) but it
+can be used by anyone interested in frequency information related to individual words (i.e. no n-grams).
+
+- [Vert-tagextract](#vert-tagextract)
+  - [Preparing the process](#preparing-the-process)
+    - [Example config](#example-config)
+  - [Configuration items](#configuration-items)
+    - [verticalFile](#verticalfile)
+    - [dbFile](#dbfile)
+    - [atomStructure](#atomstructure)
+    - [stackStructEval](#stackstructeval)
+    - [structures](#structures)
+    - [indexedCols](#indexedcols)
+    - [selfJoin](#selfjoin)
+    - [bibView](#bibview)
+    - [countColumns](#countcolumns)
+    - [countColMod](#countcolmod)
+    - [calcARF](#calcarf)
+    - [filter](#filter)
+  - [Running the export process](#running-the-export-process)
 
 ## Preparing the process
 <a name="preparing_the_process"></a>
@@ -216,7 +223,16 @@ If true and if *countColumns* is also defined then *vte* will also calculate
 a 2nd pass of the vertical file so the whole process consumes roughly twice
 as much time compared with non-ARF processing.
 
+<a name="conf_filter"></a>
+### filter
 
+type: *{lib:string; fn:string}*
+
+Specifies a path to a compiled plug-in library along with exported variable
+implementing *StructFilter* interface. It is used as a filter for each token
+where input is given by current structural attributes and their respective
+values. This can be used to process just a predefined subcorpus of the original
+corpus.
 
 <a name="running_the_export_process"></a>
 ## Running the export process
