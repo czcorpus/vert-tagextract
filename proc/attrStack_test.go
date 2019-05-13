@@ -95,18 +95,55 @@ func TestStackForEachAttrFn(t *testing.T) {
 	stack.begin(createPStructure("27"))
 	tst := make(map[string]string)
 	names := make(map[string]bool)
-	stack.forEachAttr(func(sname string, attr string, val string) {
+	stack.ForEachAttr(func(sname string, attr string, val string) bool {
 		names[sname] = true
 		tst[attr] = val
+		return true
 	})
 	_, ok := names["doc"]
-	assert.True(t, ok == true)
+	assert.True(t, ok)
 	_, ok = names["p"]
-	assert.True(t, ok == true)
+	assert.True(t, ok)
 	assert.True(t, tst["category"] == "poetry")
 	assert.True(t, tst["year"] == "1981")
 	assert.True(t, tst["num"] == "27")
 	assert.Equal(t, 3, len(tst))
+}
+
+func TestStackForEachEarlyExit(t *testing.T) {
+	stack := structStack{}
+	stack.begin(&vertigo.Structure{
+		Name: "doc",
+		Attrs: map[string]string{
+			"attr1": "val1",
+		},
+	})
+	stack.begin(&vertigo.Structure{
+		Name: "doc",
+		Attrs: map[string]string{
+			"attr2": "val2",
+		},
+	})
+	stack.begin(&vertigo.Structure{
+		Name: "doc",
+		Attrs: map[string]string{
+			"attr3": "val3",
+		},
+	})
+	tst := make(map[string]string)
+	names := make(map[string]bool)
+	stack.ForEachAttr(func(sname string, attr string, val string) bool {
+		names[sname] = true
+		tst[attr] = val
+		return !(sname == "doc" && attr == "attr3" && val == "val3")
+	})
+
+	_, ok := tst["attr3"]
+	assert.True(t, ok)
+	_, ok = tst["attr2"]
+	assert.False(t, ok)
+	_, ok = tst["attr1"]
+	assert.False(t, ok)
 }
 
 func TestNewStructStack(t *testing.T) {
@@ -163,9 +200,10 @@ func TestDefaultAccumForEachAttrFn(t *testing.T) {
 	accum.begin(createPStructure("27"))
 	tst := make(map[string]string)
 	names := make(map[string]bool)
-	accum.forEachAttr(func(sname string, attr string, val string) {
+	accum.ForEachAttr(func(sname string, attr string, val string) bool {
 		names[sname] = true
 		tst[attr] = val
+		return true
 	})
 	_, ok := names["doc"]
 	assert.True(t, ok == true)
