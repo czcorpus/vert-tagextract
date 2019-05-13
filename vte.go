@@ -88,7 +88,10 @@ func exportData(confPath string, appendData bool) {
 		}
 	}
 
-	tte := proc.NewTTExtractor(dbConn, conf, fn)
+	tte, err := proc.NewTTExtractor(dbConn, conf, fn)
+	if err != nil {
+		log.Fatal(err)
+	}
 	t0 := time.Now()
 	tte.Run(parserConf)
 	log.Printf("Finished in %s.\n", time.Since(t0))

@@ -40,6 +40,9 @@ type TTEConfProvider interface {
 	GetCountColumns() []int
 	GetCountColMod() []string
 	GetCalcARF() bool
+	HasConfiguredFilter() bool
+	GetFilterLib() string
+	GetFilterFn() string
 }
 
 // TTExtractor handles writing parsed data
@@ -54,7 +57,7 @@ type TTExtractor struct {
 	database           *sql.DB
 	transaction        *sql.Tx
 	docInsert          *sql.Stmt
-	attrAccum          attrAccumulator
+	attrAccum          AttrAccumulator
 	atomStruct         string
 	structures         map[string][]string
 	attrNames          []string
@@ -64,12 +67,19 @@ type TTExtractor struct {
 	columnModders      []*modders.ModderChain
 	calcARF            bool
 	colCounts          map[string]*ptcount.ColumnCounter
+	filter             StructFilter
 }
 
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
 func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
-	colgenFn colgen.AlignedColGenFn) *TTExtractor {
+	colgenFn colgen.AlignedColGenFn) (*TTExtractor, error) {
+
+	filter, err := LoadCustomFilter(conf.GetFilterLib(), conf.GetFilterFn())
+	if err != nil {
+		return nil, err
+	}
+
 	ans := &TTExtractor{
 		database:      database,
 		corpusID:      conf.GetCorpus(),
@@ -80,7 +90,9 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		calcARF:       conf.GetCalcARF(),
 		colCounts:     make(map[string]*ptcount.ColumnCounter),
 		columnModders: make([]*modders.ModderChain, len(conf.GetCountColumns())),
+		filter:        filter,
 	}
+
 	for i, m := range conf.GetCountColMod() {
 		values := strings.Split(m, ":")
 		if len(values) > 0 {
@@ -97,7 +109,8 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	} else {
 		ans.attrAccum = newDefaultAccum()
 	}
-	return ans
+
+	return ans, nil
 }
 
 func (tte *TTExtractor) GetNumTokens() int {
@@ -112,22 +125,25 @@ func (tte *TTExtractor) GetColCounts() map[string]*ptcount.ColumnCounter {
 // It is called by Vertigo parser when a token line is encountered.
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
-	tte.tokenInAtomCounter++
-	tte.tokenCounter = tk.Idx
 
-	colTuple := make([]string, len(tte.countColumns))
-	for i, idx := range tte.countColumns {
-		v := tk.PosAttrByIndex(idx)
-		colTuple[i] = tte.columnModders[i].Mod(v)
-	}
-	key := ptcount.MkTupleKey(colTuple)
-	cnt, ok := tte.colCounts[key]
-	if !ok {
-		cnt = ptcount.NewColumnCounter(colTuple)
-		tte.colCounts[key] = cnt
+	if tte.filter.Apply(tte.attrAccum) {
+		tte.tokenInAtomCounter++
+		tte.tokenCounter = tk.Idx
 
-	} else {
-		cnt.IncCount()
+		colTuple := make([]string, len(tte.countColumns))
+		for i, idx := range tte.countColumns {
+			v := tk.PosAttrByIndex(idx)
+			colTuple[i] = tte.columnModders[i].Mod(v)
+		}
+		key := ptcount.MkTupleKey(colTuple)
+		cnt, ok := tte.colCounts[key]
+		if !ok {
+			cnt = ptcount.NewColumnCounter(colTuple)
+			tte.colCounts[key] = cnt
+
+		} else {
+			cnt.IncCount()
+		}
 	}
 }
 
@@ -178,10 +194,11 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 	if st.Name == tte.atomStruct {
 		tte.tokenInAtomCounter = 0
 		attrs := make(map[string]interface{})
-		tte.attrAccum.forEachAttr(func(s string, k string, v string) {
+		tte.attrAccum.ForEachAttr(func(s string, k string, v string) bool {
 			if tte.acceptAttr(s, k) {
 				attrs[fmt.Sprintf("%s_%s", s, k)] = v
 			}
+			return true
 		})
 		attrs["wordcount"] = 0 // This value is currently unused
 		attrs["poscount"] = 0  // This value is updated once we hit the closing tag

@@ -24,10 +24,14 @@ import (
 
 // -----------------------------------------------
 
-type attrAccumulator interface {
+// AttrAccumulator specifies an object able to collect
+// (as tokens go) current structural attribute information.
+// Under the hood you can imagine something like a non-strict,
+// generalized stack.
+type AttrAccumulator interface {
 	begin(v *vertigo.Structure)
 	end(name string) *vertigo.Structure
-	forEachAttr(fn func(structure string, attr string, val string))
+	ForEachAttr(fn func(structure string, attr string, val string) bool)
 }
 
 // -----------------------------------------------
@@ -62,11 +66,14 @@ func (s *structStack) Size() int {
 	return s.size
 }
 
-func (s *structStack) forEachAttr(fn func(structure string, attr string, val string)) {
+func (s *structStack) ForEachAttr(fn func(structure string, attr string, val string) bool) {
 	st := s.lastItem
 	for st != nil {
 		for k, v := range st.value.Attrs {
-			fn(st.value.Name, k, v)
+			stay := fn(st.value.Name, k, v)
+			if !stay {
+				return
+			}
 		}
 		st = st.prev
 	}
@@ -97,10 +104,13 @@ func (sa *defaultAccum) end(name string) *vertigo.Structure {
 	return tmp
 }
 
-func (sa *defaultAccum) forEachAttr(fn func(structure string, attr string, val string)) {
+func (sa *defaultAccum) ForEachAttr(fn func(structure string, attr string, val string) bool) {
 	for name, structItem := range sa.elms {
 		for attr, val := range structItem.Attrs {
-			fn(name, attr, val)
+			stay := fn(name, attr, val)
+			if !stay {
+				return
+			}
 		}
 	}
 }

@@ -37,6 +37,13 @@ type BibViewConf struct {
 	IDAttr string   `json:"idAttr"`
 }
 
+// FilterConf specifies a plug-in containing
+// a compatible filter (see StructFilter interface).
+type FilterConf struct {
+	Lib string `json:"lib"`
+	Fn  string `json:"fn"`
+}
+
 // VTEConf holds configuration for a concrete
 // data extraction task.
 type VTEConf struct {
@@ -59,6 +66,8 @@ type VTEConf struct {
 	SelfJoin     SelfJoinConf `json:"selfJoin"`
 	IndexedCols  []string     `json:"indexedCols"`
 	BibView      BibViewConf  `json:"bibView"`
+
+	Filter FilterConf `json:"filter"`
 }
 
 func (c *VTEConf) UsesSelfJoin() bool {
@@ -95,6 +104,18 @@ func (c *VTEConf) GetStructures() map[string][]string {
 
 func (c *VTEConf) GetCountColumns() []int {
 	return c.CountColumns
+}
+
+func (c *VTEConf) HasConfiguredFilter() bool {
+	return c.Filter.Lib != "" && c.Filter.Fn != ""
+}
+
+func (c *VTEConf) GetFilterLib() string {
+	return c.Filter.Lib
+}
+
+func (c *VTEConf) GetFilterFn() string {
+	return c.Filter.Fn
 }
 
 func LoadConf(confPath string) *VTEConf {

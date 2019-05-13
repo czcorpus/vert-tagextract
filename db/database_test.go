@@ -68,7 +68,7 @@ func TestGenerateViewColDefs(t *testing.T) {
 func TestCreateSchema(t *testing.T) {
 	db := createDatabase()
 	structs := createStructures()
-	CreateSchema(db, structs, []string{}, false, 1)
+	CreateSchema(db, structs, []string{}, false, []int{1})
 	// cid name type notnull dflt_value pk
 	res, err := db.Query("PRAGMA table_info(item)")
 	if err != nil {
