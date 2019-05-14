@@ -31,6 +31,10 @@ import (
 	"github.com/tomachalek/vertigo"
 )
 
+const (
+	version = "0.5.0"
+)
+
 func dumpNewConf() {
 	conf := proc.VTEConf{}
 	conf.Encoding = "UTF-8"
@@ -102,7 +106,7 @@ func main() {
 		fmt.Println("\n+-------------------------------------------------------------+")
 		fmt.Println("| Vert-tagextract (vte) - a program for extracting text types |")
 		fmt.Println("|       and pos. attributes  from a corpus vertical file      |")
-		fmt.Println("|                         version 0.4                         |")
+		fmt.Printf("|                       version %s                         |\n", version)
 		fmt.Println("|          (c) Institute of the Czech National Corpus         |")
 		fmt.Println("|         (c) Tomas Machalek tomas.machalek@ff.cuni.cz        |")
 		fmt.Println("+-------------------------------------------------------------+")
