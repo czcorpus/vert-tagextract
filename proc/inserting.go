@@ -67,7 +67,7 @@ type TTExtractor struct {
 	columnModders      []*modders.ModderChain
 	calcARF            bool
 	colCounts          map[string]*ptcount.ColumnCounter
-	filter             StructFilter
+	filter             LineFilter
 }
 
 // NewTTExtractor is a factory function to
@@ -126,7 +126,7 @@ func (tte *TTExtractor) GetColCounts() map[string]*ptcount.ColumnCounter {
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 	tte.lineCounter++
 
-	if tte.filter.Apply(tte.attrAccum) {
+	if tte.filter.Apply(tk, tte.attrAccum) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
 
@@ -145,6 +145,32 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 			cnt.IncCount()
 		}
 	}
+}
+
+// ProcStruct is a part of vertigo.LineProcessor implementation.
+// It si called by Vertigo parser when an opening structure tag
+// is encountered.
+func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
+	tte.attrAccum.begin(st)
+	if st.Name == tte.atomStruct {
+		tte.tokenInAtomCounter = 0
+		attrs := make(map[string]interface{})
+		tte.attrAccum.ForEachAttr(func(s string, k string, v string) bool {
+			if tte.acceptAttr(s, k) {
+				attrs[fmt.Sprintf("%s_%s", s, k)] = v
+			}
+			return true
+		})
+		attrs["wordcount"] = 0 // This value is currently unused
+		attrs["poscount"] = 0  // This value is updated once we hit the closing tag
+		attrs["corpus_id"] = tte.corpusID
+		if tte.colgenFn != nil {
+			attrs["item_id"] = tte.colgenFn(attrs)
+		}
+		tte.currAtomAttrs = attrs
+		tte.atomCounter++
+	}
+	tte.lineCounter++
 }
 
 // ProcStructClose is a part of vertigo.LineProcessor implementation.
@@ -184,32 +210,6 @@ func (tte *TTExtractor) acceptAttr(structName string, attrName string) bool {
 		}
 	}
 	return false
-}
-
-// ProcStruct is a part of vertigo.LineProcessor implementation.
-// It si called by Vertigo parser when an opening structure tag
-// is encountered.
-func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
-	tte.attrAccum.begin(st)
-	if st.Name == tte.atomStruct {
-		tte.tokenInAtomCounter = 0
-		attrs := make(map[string]interface{})
-		tte.attrAccum.ForEachAttr(func(s string, k string, v string) bool {
-			if tte.acceptAttr(s, k) {
-				attrs[fmt.Sprintf("%s_%s", s, k)] = v
-			}
-			return true
-		})
-		attrs["wordcount"] = 0 // This value is currently unused
-		attrs["poscount"] = 0  // This value is updated once we hit the closing tag
-		attrs["corpus_id"] = tte.corpusID
-		if tte.colgenFn != nil {
-			attrs["item_id"] = tte.colgenFn(attrs)
-		}
-		tte.currAtomAttrs = attrs
-		tte.atomCounter++
-	}
-	tte.lineCounter++
 }
 
 func (tte *TTExtractor) calcNumAttrs() int {

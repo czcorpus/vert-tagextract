@@ -229,7 +229,7 @@ as much time compared with non-ARF processing.
 type: *{lib:string; fn:string}*
 
 Specifies a path to a compiled plug-in library along with exported variable
-implementing *StructFilter* interface. It is used as a filter for each token
+implementing *LineFilter* interface. It is used as a filter for each token
 where input is given by current structural attributes and their respective
 values. This can be used to process just a predefined subcorpus of the original
 corpus.

@@ -38,7 +38,7 @@ type BibViewConf struct {
 }
 
 // FilterConf specifies a plug-in containing
-// a compatible filter (see StructFilter interface).
+// a compatible filter (see LineFilter interface).
 type FilterConf struct {
 	Lib string `json:"lib"`
 	Fn  string `json:"fn"`

@@ -24,17 +24,18 @@ import (
 	"strings"
 
 	"github.com/czcorpus/vert-tagextract/fs"
+	"github.com/tomachalek/vertigo"
 )
 
 const (
 	defaultSystemPluginDir = "/usr/local/lib/vert-tagextract"
 )
 
-// StructFilter allows selecting only tokens with specific
+// LineFilter allows selecting only tokens with specific
 // accumulated structure information (e.g. I want doc.type='scifi' AND
 // text.type!='meta').
-type StructFilter interface {
-	Apply(attrAcc AttrAccumulator) bool
+type LineFilter interface {
+	Apply(tk *vertigo.Token, attrAcc AttrAccumulator) bool
 }
 
 func findPluginLib(pathSuff string) (string, error) {
@@ -57,7 +58,7 @@ type PassAllFilter struct{}
 
 // Apply tests current state of the attribute accumulator against
 // the filter.
-func (df *PassAllFilter) Apply(attrAcc AttrAccumulator) bool {
+func (df *PassAllFilter) Apply(tk *vertigo.Token, attrAcc AttrAccumulator) bool {
 	return true
 }
 
@@ -66,7 +67,7 @@ func (df *PassAllFilter) Apply(attrAcc AttrAccumulator) bool {
 // In case libPath does not point to an existing file, the function
 // handles it as a path suffix and tries other locations (working
 // directory, /usr/local/lib/gloomy).
-func LoadCustomFilter(libPath string, fn string) (StructFilter, error) {
+func LoadCustomFilter(libPath string, fn string) (LineFilter, error) {
 	if libPath != "" && fn != "" {
 		fullPath, err := findPluginLib(libPath)
 		if err != nil {
@@ -81,7 +82,7 @@ func LoadCustomFilter(libPath string, fn string) (StructFilter, error) {
 			return nil, err
 		}
 		log.Printf("INFO: Using filter plug-in %s from %s", fn, fullPath)
-		return f.(StructFilter), nil
+		return f.(LineFilter), nil
 	}
 	log.Print("INFO: No custom filter plug-in defined. Using 'pass all'.")
 	return &PassAllFilter{}, nil
