@@ -47,10 +47,13 @@ type FilterConf struct {
 // VTEConf holds configuration for a concrete
 // data extraction task.
 type VTEConf struct {
-	Corpus          string              `json:"corpus"`
-	AtomStructure   string              `json:"atomStructure"`
-	StackStructEval bool                `json:"stackStructEval"`
-	Structures      map[string][]string `json:"structures"`
+	Corpus          string `json:"corpus"`
+	AtomStructure   string `json:"atomStructure"`
+	StackStructEval bool   `json:"stackStructEval"`
+
+	// MaxNumErrors if reached then the process stops
+	MaxNumErrors int                 `json:"maxNumErrors"`
+	Structures   map[string][]string `json:"structures"`
 
 	// ColumnCounts configures positional attributes (referred by their
 	// column position) we want to count. This can be used to extract
@@ -116,6 +119,10 @@ func (c *VTEConf) GetFilterLib() string {
 
 func (c *VTEConf) GetFilterFn() string {
 	return c.Filter.Fn
+}
+
+func (c *VTEConf) GetMaxNumErrors() int {
+	return c.MaxNumErrors
 }
 
 func LoadConf(confPath string) *VTEConf {

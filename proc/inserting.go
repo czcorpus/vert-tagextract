@@ -27,7 +27,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/ptcount"
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
-	"github.com/tomachalek/vertigo"
+	"github.com/tomachalek/vertigo/v2"
 )
 
 // TTEConfProvider defines an object able to
@@ -36,6 +36,7 @@ type TTEConfProvider interface {
 	GetCorpus() string
 	GetAtomStructure() string
 	GetStackStructEval() bool
+	GetMaxNumErrors() int
 	GetStructures() map[string][]string
 	GetCountColumns() []int
 	GetCountColMod() []string
@@ -51,6 +52,8 @@ type TTEConfProvider interface {
 type TTExtractor struct {
 	lineCounter        int
 	atomCounter        int
+	errorCounter       int
+	maxNumErrors       int
 	tokenInAtomCounter int
 	tokenCounter       int
 	corpusID           string
@@ -79,7 +82,6 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	if err != nil {
 		return nil, err
 	}
-
 	ans := &TTExtractor{
 		database:      database,
 		corpusID:      conf.GetCorpus(),
@@ -91,6 +93,7 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		colCounts:     make(map[string]*ptcount.ColumnCounter),
 		columnModders: make([]*modders.ModderChain, len(conf.GetCountColumns())),
 		filter:        filter,
+		maxNumErrors:  conf.GetMaxNumErrors(),
 	}
 
 	for i, m := range conf.GetCountColMod() {
@@ -121,11 +124,24 @@ func (tte *TTExtractor) GetColCounts() map[string]*ptcount.ColumnCounter {
 	return tte.colCounts
 }
 
+func (tte *TTExtractor) incNumErrorsAndTest() {
+	tte.errorCounter++
+	if tte.errorCounter > tte.maxNumErrors {
+		log.Fatal("FATAL: too many errors")
+	}
+}
+
+func (tte *TTExtractor) reportErrorOnLine(lineNum int, err error) {
+	log.Printf("ERROR: Line %d: %s", lineNum, err)
+}
+
 // ProcToken is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a token line is encountered.
-func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
-	tte.lineCounter++
-
+func (tte *TTExtractor) ProcToken(tk *vertigo.Token, err error) {
+	if err != nil {
+		tte.reportErrorOnLine(tte.lineCounter, err)
+		tte.incNumErrorsAndTest()
+	}
 	if tte.filter.Apply(tk, tte.attrAccum) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
@@ -145,14 +161,33 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token) {
 			cnt.IncCount()
 		}
 	}
+	tte.lineCounter++
 }
 
 // ProcStruct is a part of vertigo.LineProcessor implementation.
 // It si called by Vertigo parser when an opening structure tag
 // is encountered.
-func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
-	tte.attrAccum.begin(st)
-	if st.Name == tte.atomStruct {
+func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, err error) {
+	if err != nil { // error from the Vertigo parser
+		tte.reportErrorOnLine(tte.lineCounter, err)
+		tte.incNumErrorsAndTest()
+	}
+
+	err2 := tte.attrAccum.begin(st)
+	if err2 != nil {
+		tte.reportErrorOnLine(tte.lineCounter, err2)
+		tte.incNumErrorsAndTest()
+	}
+	if st.IsEmpty {
+		_, err3 := tte.attrAccum.end(st.Name)
+		if err3 != nil {
+			fmt.Println("ERR HERE >>>> ", err3)
+			tte.reportErrorOnLine(tte.lineCounter, err3)
+			tte.incNumErrorsAndTest()
+		}
+	}
+
+	if st != nil && st.Name == tte.atomStruct {
 		tte.tokenInAtomCounter = 0
 		attrs := make(map[string]interface{})
 		tte.attrAccum.ForEachAttr(func(s string, k string, v string) bool {
@@ -176,9 +211,16 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure) {
 // ProcStructClose is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a closing structure tag is
 // encountered.
-func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
-	tte.attrAccum.end(st.Name)
-	tte.lineCounter++
+func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, err error) {
+	if err != nil { // error from the Vertigo parser
+		tte.reportErrorOnLine(tte.lineCounter, err)
+		tte.incNumErrorsAndTest()
+	}
+	_, err2 := tte.attrAccum.end(st.Name)
+	if err2 != nil {
+		tte.reportErrorOnLine(tte.lineCounter, err2)
+		tte.incNumErrorsAndTest()
+	}
 
 	if st.Name == tte.atomStruct {
 		tte.currAtomAttrs["poscount"] = tte.tokenInAtomCounter
@@ -198,6 +240,7 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose) {
 		}
 		tte.currAtomAttrs = make(map[string]interface{})
 	}
+	tte.lineCounter++
 }
 
 // acceptAttr tests whether a structural attribute
@@ -268,6 +311,7 @@ func (tte *TTExtractor) insertCounts() {
 // makes sqlite3 inserts a few orders of magnitude
 // faster.
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
+	log.Print("INFO: using zero-based indexing when reporting line errors")
 	log.Print("Starting to process the vertical file...")
 	tte.database.Exec("PRAGMA synchronous = OFF")
 	tte.database.Exec("PRAGMA journal_mode = MEMORY")
@@ -279,7 +323,6 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 
 	tte.attrNames = tte.generateAttrList()
 	tte.docInsert = db.PrepareInsert(tte.transaction, "item", tte.attrNames)
-
 	parserErr := vertigo.ParseVerticalFile(conf, tte)
 	if parserErr != nil {
 		tte.transaction.Rollback()

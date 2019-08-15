@@ -22,7 +22,7 @@ import (
 	"math"
 
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
-	"github.com/tomachalek/vertigo"
+	"github.com/tomachalek/vertigo/v2"
 )
 
 // For more information about ARF definition and possible calculation
@@ -80,7 +80,7 @@ func NewARFCalculator(counts map[string]*ColumnCounter, countColumns []int, numT
 }
 
 // ProcToken is called by vertigo parser when a token is encountered
-func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token) {
+func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, err error) {
 	colTuple := make([]string, len(arfc.countColumns))
 	for i, idx := range arfc.countColumns {
 		v := tk.PosAttrByIndex(idx)
@@ -102,6 +102,12 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token) {
 	cnt.ARF().PrevTokIdx = tk.Idx
 }
 
+// ProcStruct is used by Vertigo parser but we don't need it here
+func (arfc *ARFCalculator) ProcStruct(strc *vertigo.Structure, err error) {}
+
+// ProcStructClose is used by Vertigo parser but we don't need it here
+func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, err error) {}
+
 // Finalize performs some final calculations on obtained
 // (and continuouslz calculated) data. It is required to
 // to obtain correct ARF results.
@@ -113,9 +119,3 @@ func (arfc *ARFCalculator) Finalize() {
 		val.ARF().ARF = math.Round(val.ARF().ARF/avgDist*1000) / 1000.0
 	}
 }
-
-// ProcStruct is used by Vertigo parser but we don't need it here
-func (arfc *ARFCalculator) ProcStruct(strc *vertigo.Structure) {}
-
-// ProcStructClose is used by Vertigo parser but we don't need it here
-func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose) {}

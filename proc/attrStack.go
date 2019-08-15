@@ -19,7 +19,7 @@ package proc
 import (
 	"fmt"
 
-	"github.com/tomachalek/vertigo"
+	"github.com/tomachalek/vertigo/v2"
 )
 
 // -----------------------------------------------
@@ -29,8 +29,8 @@ import (
 // Under the hood you can imagine something like a non-strict,
 // generalized stack.
 type AttrAccumulator interface {
-	begin(v *vertigo.Structure)
-	end(name string) *vertigo.Structure
+	begin(v *vertigo.Structure) error
+	end(name string) (*vertigo.Structure, error)
 	ForEachAttr(fn func(structure string, attr string, val string) bool)
 }
 
@@ -46,20 +46,22 @@ type structStack struct {
 	size     int
 }
 
-func (s *structStack) begin(item *vertigo.Structure) {
+func (s *structStack) begin(item *vertigo.Structure) error {
 	tmp := s.lastItem
 	s.lastItem = &stackItem{prev: tmp, value: item}
 	s.size++
+	return nil
 }
 
-func (s *structStack) end(name string) *vertigo.Structure {
+func (s *structStack) end(name string) (*vertigo.Structure, error) {
 	if s.lastItem.value.Name != name {
+		return nil, fmt.Errorf("Stack-based processing error. Encountered element: [%s], stack top: [%s]", name, s.lastItem.value.Name)
 		panic(fmt.Sprintf("Stack error. Expected: %s, got: %s", s.lastItem.value.Name, name))
 	}
 	tmp := s.lastItem
 	s.lastItem = s.lastItem.prev
 	s.size--
-	return tmp.value
+	return tmp.value, nil
 }
 
 func (s *structStack) Size() int {
@@ -83,6 +85,22 @@ func newStructStack() *structStack {
 	return &structStack{}
 }
 
+func getElementHintRepr(v *vertigo.Structure) (ident string) {
+	identAttrs := []string{"id", "name", "ident", "inst"}
+	for _, a := range identAttrs {
+		var ok bool
+		ident, ok = v.Attrs[a]
+		if ok {
+			ident = fmt.Sprintf("<%s %s=\"%s\">", v.Name, a, ident)
+			break
+		}
+	}
+	if len(ident) == 0 {
+		ident = fmt.Sprintf("<%s>", v.Name)
+	}
+	return
+}
+
 // -----------------------------------------------
 
 // defaultAccum is a structure accumulator which
@@ -94,14 +112,22 @@ type defaultAccum struct {
 	elms map[string]*vertigo.Structure
 }
 
-func (sa *defaultAccum) begin(v *vertigo.Structure) {
+func (sa *defaultAccum) begin(v *vertigo.Structure) error {
+	prev, ok := sa.elms[v.Name]
+	if ok {
+		return fmt.Errorf("Self-recursion not allowed, element %s in %s", getElementHintRepr(v), getElementHintRepr(prev))
+	}
 	sa.elms[v.Name] = v
+	return nil
 }
 
-func (sa *defaultAccum) end(name string) *vertigo.Structure {
-	tmp := sa.elms[name]
-	delete(sa.elms, name)
-	return tmp
+func (sa *defaultAccum) end(name string) (*vertigo.Structure, error) {
+	tmp, ok := sa.elms[name]
+	if ok {
+		delete(sa.elms, name)
+		return tmp, nil
+	}
+	return nil, fmt.Errorf("Cannot close element [%s] - opening not found")
 }
 
 func (sa *defaultAccum) ForEachAttr(fn func(structure string, attr string, val string) bool) {
