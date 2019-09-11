@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tomachalek/vertigo/v2"
+	"github.com/tomachalek/vertigo/v3"
 )
 
 func createDocStructure(category string, year string) *vertigo.Structure {
@@ -49,50 +49,49 @@ func TestSizeEmpty(t *testing.T) {
 
 func TestSizeNonEmpty(t *testing.T) {
 	stack := structStack{}
-	stack.begin(createDocStructure("foo", "bar"))
-	stack.begin(createDocStructure("foo", "baz"))
+	stack.begin(0, createDocStructure("foo", "bar"))
+	stack.begin(1, createDocStructure("foo", "baz"))
 	assert.Equal(t, 2, stack.Size())
 }
 
 func TestStackBeginFunction(t *testing.T) {
 	stack := structStack{}
 	st1 := createDocStructure("poetry", "1981")
-	stack.begin(st1)
+	stack.begin(0, st1)
 	st2 := createPStructure("1")
-	stack.begin(st2)
-	assert.Equal(t, stack.lastItem.value, st2)
-	assert.Equal(t, stack.lastItem.prev.value, st1)
+	stack.begin(1, st2)
+	assert.Equal(t, stack.lastItem.value.elm, st2)
+	assert.Equal(t, stack.lastItem.value.lineOpen, 1)
+	assert.Equal(t, stack.lastItem.prev.value.elm, st1)
+	assert.Equal(t, stack.lastItem.prev.value.lineOpen, 0)
 }
 
 func TestStackEndFunction(t *testing.T) {
 	stack := structStack{}
 	st1 := createDocStructure("poetry", "1981")
-	stack.begin(st1)
+	stack.begin(0, st1)
 	st2 := createPStructure("1")
-	stack.begin(st2)
+	stack.begin(1, st2)
 
-	stack.end("p")
-	stack.end("doc")
+	stack.end(0, "p")
+	stack.end(1, "doc")
 	assert.Nil(t, stack.lastItem)
 }
 
 func TestStackNestingError(t *testing.T) {
 	stack := structStack{}
 	st1 := createDocStructure("poetry", "1981")
-	stack.begin(st1)
+	stack.begin(0, st1)
 	st2 := createPStructure("1")
-	stack.begin(st2)
-
-	assert.Panics(t, func() {
-		stack.end("doc")
-		stack.end("p")
-	})
+	stack.begin(1, st2)
+	_, err := stack.end(3, "doc")
+	assert.Error(t, err)
 }
 
 func TestStackForEachAttrFn(t *testing.T) {
 	stack := structStack{}
-	stack.begin(createDocStructure("poetry", "1981"))
-	stack.begin(createPStructure("27"))
+	stack.begin(0, createDocStructure("poetry", "1981"))
+	stack.begin(1, createPStructure("27"))
 	tst := make(map[string]string)
 	names := make(map[string]bool)
 	stack.ForEachAttr(func(sname string, attr string, val string) bool {
@@ -112,19 +111,19 @@ func TestStackForEachAttrFn(t *testing.T) {
 
 func TestStackForEachEarlyExit(t *testing.T) {
 	stack := structStack{}
-	stack.begin(&vertigo.Structure{
+	stack.begin(0, &vertigo.Structure{
 		Name: "doc",
 		Attrs: map[string]string{
 			"attr1": "val1",
 		},
 	})
-	stack.begin(&vertigo.Structure{
+	stack.begin(1, &vertigo.Structure{
 		Name: "doc",
 		Attrs: map[string]string{
 			"attr2": "val2",
 		},
 	})
-	stack.begin(&vertigo.Structure{
+	stack.begin(2, &vertigo.Structure{
 		Name: "doc",
 		Attrs: map[string]string{
 			"attr3": "val3",
@@ -156,48 +155,50 @@ func TestNewStructStack(t *testing.T) {
 
 func TestDefaultAccumBegin(t *testing.T) {
 	accum := defaultAccum{}
-	accum.elms = make(map[string]*vertigo.Structure)
+	accum.elms = make(map[string]*AccumItem)
 	st1 := createDocStructure("poetry", "1981")
-	accum.begin(st1)
+	accum.begin(0, st1)
 	st2 := createPStructure("1")
-	accum.begin(st2)
-	assert.Equal(t, st1, accum.elms[st1.Name])
-	assert.Equal(t, st2, accum.elms[st2.Name])
+	accum.begin(1, st2)
+	assert.Equal(t, st1, accum.elms[st1.Name].elm)
+	assert.Equal(t, 0, accum.elms[st1.Name].lineOpen)
+	assert.Equal(t, st2, accum.elms[st2.Name].elm)
+	assert.Equal(t, 1, accum.elms[st2.Name].lineOpen)
 	assert.Equal(t, 2, len(accum.elms))
 }
 
 func TestDefaultAccumEnd(t *testing.T) {
 	accum := defaultAccum{}
-	accum.elms = make(map[string]*vertigo.Structure)
+	accum.elms = make(map[string]*AccumItem)
 	st1 := createDocStructure("poetry", "1981")
-	accum.begin(st1)
+	accum.begin(0, st1)
 	st2 := createPStructure("1")
-	accum.begin(st2)
+	accum.begin(1, st2)
 
-	accum.end("p")
-	accum.end("doc")
+	accum.end(10, "p")
+	accum.end(11, "doc")
 	assert.Equal(t, 0, len(accum.elms))
 }
 
 func TestDefaultAccumBadNesting(t *testing.T) {
 	accum := defaultAccum{}
-	accum.elms = make(map[string]*vertigo.Structure)
+	accum.elms = make(map[string]*AccumItem)
 	st1 := createDocStructure("poetry", "1981")
-	accum.begin(st1)
+	accum.begin(0, st1)
 	st2 := createPStructure("1")
-	accum.begin(st2)
-	accum.end("doc")
+	accum.begin(1, st2)
+	accum.end(2, "doc")
 	assert.Equal(t, 1, len(accum.elms))
-	assert.Equal(t, st2, accum.elms[st2.Name])
-	accum.end("p")
+	assert.Equal(t, st2, accum.elms[st2.Name].elm)
+	accum.end(3, "p")
 	assert.Equal(t, 0, len(accum.elms))
 }
 
 func TestDefaultAccumForEachAttrFn(t *testing.T) {
 	accum := defaultAccum{}
-	accum.elms = make(map[string]*vertigo.Structure)
-	accum.begin(createDocStructure("poetry", "1981"))
-	accum.begin(createPStructure("27"))
+	accum.elms = make(map[string]*AccumItem)
+	accum.begin(0, createDocStructure("poetry", "1981"))
+	accum.begin(1, createPStructure("27"))
 	tst := make(map[string]string)
 	names := make(map[string]bool)
 	accum.ForEachAttr(func(sname string, attr string, val string) bool {

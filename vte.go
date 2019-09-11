@@ -28,7 +28,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	"github.com/czcorpus/vert-tagextract/proc"
-	"github.com/tomachalek/vertigo/v2"
+	"github.com/tomachalek/vertigo/v3"
 )
 
 const (

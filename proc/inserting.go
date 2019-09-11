@@ -27,7 +27,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/ptcount"
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
-	"github.com/tomachalek/vertigo/v2"
+	"github.com/tomachalek/vertigo/v3"
 )
 
 // TTEConfProvider defines an object able to
@@ -35,6 +35,7 @@ import (
 type TTEConfProvider interface {
 	GetCorpus() string
 	GetAtomStructure() string
+	GetAtomParentStructure() string
 	GetStackStructEval() bool
 	GetMaxNumErrors() int
 	GetStructures() map[string][]string
@@ -50,7 +51,6 @@ type TTEConfProvider interface {
 // to a sqlite3 database. Parsed values are
 // received pasivelly by implementing vertigo.LineProcessor
 type TTExtractor struct {
-	lineCounter        int
 	atomCounter        int
 	errorCounter       int
 	maxNumErrors       int
@@ -62,6 +62,8 @@ type TTExtractor struct {
 	docInsert          *sql.Stmt
 	attrAccum          AttrAccumulator
 	atomStruct         string
+	atomParentStruct   string
+	lastAtomOpenLine   int
 	structures         map[string][]string
 	attrNames          []string
 	colgenFn           colgen.AlignedColGenFn
@@ -83,17 +85,19 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		return nil, err
 	}
 	ans := &TTExtractor{
-		database:      database,
-		corpusID:      conf.GetCorpus(),
-		atomStruct:    conf.GetAtomStructure(),
-		structures:    conf.GetStructures(),
-		colgenFn:      colgenFn,
-		countColumns:  conf.GetCountColumns(),
-		calcARF:       conf.GetCalcARF(),
-		colCounts:     make(map[string]*ptcount.ColumnCounter),
-		columnModders: make([]*modders.ModderChain, len(conf.GetCountColumns())),
-		filter:        filter,
-		maxNumErrors:  conf.GetMaxNumErrors(),
+		database:         database,
+		corpusID:         conf.GetCorpus(),
+		atomStruct:       conf.GetAtomStructure(),
+		atomParentStruct: conf.GetAtomParentStructure(),
+		lastAtomOpenLine: -1,
+		structures:       conf.GetStructures(),
+		colgenFn:         colgenFn,
+		countColumns:     conf.GetCountColumns(),
+		calcARF:          conf.GetCalcARF(),
+		colCounts:        make(map[string]*ptcount.ColumnCounter),
+		columnModders:    make([]*modders.ModderChain, len(conf.GetCountColumns())),
+		filter:           filter,
+		maxNumErrors:     conf.GetMaxNumErrors(),
 	}
 
 	for i, m := range conf.GetCountColMod() {
@@ -137,9 +141,9 @@ func (tte *TTExtractor) reportErrorOnLine(lineNum int, err error) {
 
 // ProcToken is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a token line is encountered.
-func (tte *TTExtractor) ProcToken(tk *vertigo.Token, err error) {
+func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 	if err != nil {
-		tte.reportErrorOnLine(tte.lineCounter, err)
+		tte.reportErrorOnLine(line, err)
 		tte.incNumErrorsAndTest()
 	}
 	if tte.filter.Apply(tk, tte.attrAccum) {
@@ -161,70 +165,87 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, err error) {
 			cnt.IncCount()
 		}
 	}
-	tte.lineCounter++
+}
+
+func (tte *TTExtractor) getCurrentAccumAttrs() map[string]interface{} {
+	attrs := make(map[string]interface{})
+	tte.attrAccum.ForEachAttr(func(s string, k string, v string) bool {
+		if tte.acceptAttr(s, k) {
+			attrs[fmt.Sprintf("%s_%s", s, k)] = v
+		}
+		return true
+	})
+	return attrs
 }
 
 // ProcStruct is a part of vertigo.LineProcessor implementation.
 // It si called by Vertigo parser when an opening structure tag
 // is encountered.
-func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, err error) {
+func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 	if err != nil { // error from the Vertigo parser
-		tte.reportErrorOnLine(tte.lineCounter, err)
+		tte.reportErrorOnLine(line, err)
 		tte.incNumErrorsAndTest()
 	}
 
-	err2 := tte.attrAccum.begin(st)
+	err2 := tte.attrAccum.begin(line, st)
 	if err2 != nil {
-		tte.reportErrorOnLine(tte.lineCounter, err2)
+		tte.reportErrorOnLine(line, err2)
 		tte.incNumErrorsAndTest()
 	}
 	if st.IsEmpty {
-		_, err3 := tte.attrAccum.end(st.Name)
+		_, err3 := tte.attrAccum.end(line, st.Name)
 		if err3 != nil {
 			fmt.Println("ERR HERE >>>> ", err3)
-			tte.reportErrorOnLine(tte.lineCounter, err3)
+			tte.reportErrorOnLine(line, err3)
 			tte.incNumErrorsAndTest()
 		}
 	}
 
-	if st != nil && st.Name == tte.atomStruct {
-		tte.tokenInAtomCounter = 0
-		attrs := make(map[string]interface{})
-		tte.attrAccum.ForEachAttr(func(s string, k string, v string) bool {
-			if tte.acceptAttr(s, k) {
-				attrs[fmt.Sprintf("%s_%s", s, k)] = v
+	if st != nil {
+		if st.Name == tte.atomStruct {
+			tte.lastAtomOpenLine = line
+			tte.tokenInAtomCounter = 0
+			attrs := tte.getCurrentAccumAttrs()
+			attrs["wordcount"] = 0 // This value is currently unused
+			attrs["poscount"] = 0  // This value is updated once we hit the closing tag
+			attrs["corpus_id"] = tte.corpusID
+			if tte.colgenFn != nil {
+				attrs["item_id"] = tte.colgenFn(attrs)
 			}
-			return true
-		})
-		attrs["wordcount"] = 0 // This value is currently unused
-		attrs["poscount"] = 0  // This value is updated once we hit the closing tag
-		attrs["corpus_id"] = tte.corpusID
-		if tte.colgenFn != nil {
-			attrs["item_id"] = tte.colgenFn(attrs)
+			tte.currAtomAttrs = attrs
+			tte.atomCounter++
+
+		} else if st.Name == tte.atomParentStruct {
+			attrs := tte.getCurrentAccumAttrs()
+			attrs["wordcount"] = 0 // This value is currently unused
+			attrs["poscount"] = 0  // This value is updated once we hit the closing tag
+			attrs["corpus_id"] = tte.corpusID
+			if tte.colgenFn != nil {
+				attrs["item_id"] = tte.colgenFn(attrs)
+			}
+			tte.currAtomAttrs = attrs
 		}
-		tte.currAtomAttrs = attrs
-		tte.atomCounter++
 	}
-	tte.lineCounter++
 }
 
 // ProcStructClose is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a closing structure tag is
 // encountered.
-func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, err error) {
+func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, err error) {
 	if err != nil { // error from the Vertigo parser
-		tte.reportErrorOnLine(tte.lineCounter, err)
+		tte.reportErrorOnLine(line, err)
 		tte.incNumErrorsAndTest()
 	}
-	_, err2 := tte.attrAccum.end(st.Name)
+	accumItem, err2 := tte.attrAccum.end(line, st.Name)
 	if err2 != nil {
-		tte.reportErrorOnLine(tte.lineCounter, err2)
+		tte.reportErrorOnLine(line, err2)
 		tte.incNumErrorsAndTest()
 	}
 
-	if st.Name == tte.atomStruct {
-		tte.currAtomAttrs["poscount"] = tte.tokenInAtomCounter
+	if accumItem.elm.Name == tte.atomStruct ||
+		accumItem.elm.Name == tte.atomParentStruct && tte.lastAtomOpenLine < accumItem.lineOpen {
 
+		tte.currAtomAttrs["poscount"] = tte.tokenInAtomCounter
 		values := make([]interface{}, len(tte.attrNames))
 		for i, n := range tte.attrNames {
 			if tte.currAtomAttrs[n] != nil {
@@ -240,7 +261,6 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, err error) {
 		}
 		tte.currAtomAttrs = make(map[string]interface{})
 	}
-	tte.lineCounter++
 }
 
 // acceptAttr tests whether a structural attribute
