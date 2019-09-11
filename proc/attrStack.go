@@ -19,18 +19,27 @@ package proc
 import (
 	"fmt"
 
-	"github.com/tomachalek/vertigo/v2"
+	"github.com/tomachalek/vertigo/v3"
 )
 
 // -----------------------------------------------
+
+type AccumItem struct {
+	elm *vertigo.Structure
+
+	// currently opened elements have a opening position stored
+	// here so we are able to watch whether atomic elements changed
+	// in each change of their parents.
+	lineOpen int
+}
 
 // AttrAccumulator specifies an object able to collect
 // (as tokens go) current structural attribute information.
 // Under the hood you can imagine something like a non-strict,
 // generalized stack.
 type AttrAccumulator interface {
-	begin(v *vertigo.Structure) error
-	end(name string) (*vertigo.Structure, error)
+	begin(lineIdx int, v *vertigo.Structure) error
+	end(lineIdx int, name string) (*AccumItem, error)
 	ForEachAttr(fn func(structure string, attr string, val string) bool)
 }
 
@@ -38,7 +47,7 @@ type AttrAccumulator interface {
 
 type stackItem struct {
 	prev  *stackItem
-	value *vertigo.Structure
+	value *AccumItem
 }
 
 type structStack struct {
@@ -46,17 +55,22 @@ type structStack struct {
 	size     int
 }
 
-func (s *structStack) begin(item *vertigo.Structure) error {
+func (s *structStack) begin(line int, item *vertigo.Structure) error {
 	tmp := s.lastItem
-	s.lastItem = &stackItem{prev: tmp, value: item}
+	s.lastItem = &stackItem{
+		prev: tmp,
+		value: &AccumItem{
+			elm:      item,
+			lineOpen: line,
+		},
+	}
 	s.size++
 	return nil
 }
 
-func (s *structStack) end(name string) (*vertigo.Structure, error) {
-	if s.lastItem.value.Name != name {
-		return nil, fmt.Errorf("Stack-based processing error. Encountered element: [%s], stack top: [%s]", name, s.lastItem.value.Name)
-		panic(fmt.Sprintf("Stack error. Expected: %s, got: %s", s.lastItem.value.Name, name))
+func (s *structStack) end(line int, name string) (*AccumItem, error) {
+	if s.lastItem.value.elm.Name != name {
+		return nil, fmt.Errorf("Stack-based processing error. Encountered element: [%s], stack top: [%s]", name, s.lastItem.value.elm.Name)
 	}
 	tmp := s.lastItem
 	s.lastItem = s.lastItem.prev
@@ -71,8 +85,8 @@ func (s *structStack) Size() int {
 func (s *structStack) ForEachAttr(fn func(structure string, attr string, val string) bool) {
 	st := s.lastItem
 	for st != nil {
-		for k, v := range st.value.Attrs {
-			stay := fn(st.value.Name, k, v)
+		for k, v := range st.value.elm.Attrs {
+			stay := fn(st.value.elm.Name, k, v)
 			if !stay {
 				return
 			}
@@ -109,30 +123,32 @@ func getElementHintRepr(v *vertigo.Structure) (ident string) {
 // nest a single structure to itself
 // (e.g.: <p>...<p>...</p>..</p>).
 type defaultAccum struct {
-	elms map[string]*vertigo.Structure
+	elms map[string]*AccumItem
+
+	lastStruct *vertigo.Structure
 }
 
-func (sa *defaultAccum) begin(v *vertigo.Structure) error {
+func (sa *defaultAccum) begin(line int, v *vertigo.Structure) error {
 	prev, ok := sa.elms[v.Name]
 	if ok {
-		return fmt.Errorf("Self-recursion not allowed, element %s in %s", getElementHintRepr(v), getElementHintRepr(prev))
+		return fmt.Errorf("Self-recursion not allowed, element %s in %s", getElementHintRepr(v), getElementHintRepr(prev.elm))
 	}
-	sa.elms[v.Name] = v
+	sa.elms[v.Name] = &AccumItem{elm: v, lineOpen: line}
 	return nil
 }
 
-func (sa *defaultAccum) end(name string) (*vertigo.Structure, error) {
+func (sa *defaultAccum) end(line int, name string) (*AccumItem, error) {
 	tmp, ok := sa.elms[name]
 	if ok {
 		delete(sa.elms, name)
 		return tmp, nil
 	}
-	return nil, fmt.Errorf("Cannot close element [%s] - opening not found")
+	return nil, fmt.Errorf("Cannot close element [%s] - opening not found", name)
 }
 
 func (sa *defaultAccum) ForEachAttr(fn func(structure string, attr string, val string) bool) {
 	for name, structItem := range sa.elms {
-		for attr, val := range structItem.Attrs {
+		for attr, val := range structItem.elm.Attrs {
 			stay := fn(name, attr, val)
 			if !stay {
 				return
@@ -142,5 +158,7 @@ func (sa *defaultAccum) ForEachAttr(fn func(structure string, attr string, val s
 }
 
 func newDefaultAccum() *defaultAccum {
-	return &defaultAccum{elms: make(map[string]*vertigo.Structure)}
+	return &defaultAccum{
+		elms: make(map[string]*AccumItem),
+	}
 }

@@ -18,7 +18,7 @@ package ptcount
 import (
 	"strings"
 
-	"github.com/tomachalek/vertigo/v2"
+	"github.com/tomachalek/vertigo/v3"
 )
 
 // ColumnCounter stores token tuple along with abs. freq.

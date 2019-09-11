@@ -47,9 +47,10 @@ type FilterConf struct {
 // VTEConf holds configuration for a concrete
 // data extraction task.
 type VTEConf struct {
-	Corpus          string `json:"corpus"`
-	AtomStructure   string `json:"atomStructure"`
-	StackStructEval bool   `json:"stackStructEval"`
+	Corpus              string `json:"corpus"`
+	AtomStructure       string `json:"atomStructure"`
+	AtomParentStructure string `json:"atomParentStructure"`
+	StackStructEval     bool   `json:"stackStructEval"`
 
 	// MaxNumErrors if reached then the process stops
 	MaxNumErrors int                 `json:"maxNumErrors"`
@@ -95,6 +96,10 @@ func (c *VTEConf) GetCalcARF() bool {
 
 func (c *VTEConf) GetAtomStructure() string {
 	return c.AtomStructure
+}
+
+func (c *VTEConf) GetAtomParentStructure() string {
+	return c.AtomParentStructure
 }
 
 func (c *VTEConf) GetStackStructEval() bool {
