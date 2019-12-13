@@ -45,6 +45,7 @@ type TTEConfProvider interface {
 	HasConfiguredFilter() bool
 	GetFilterLib() string
 	GetFilterFn() string
+	GetDbConfSettings() []string
 }
 
 // TTExtractor handles writing parsed data
@@ -58,6 +59,7 @@ type TTExtractor struct {
 	tokenCounter       int
 	corpusID           string
 	database           *sql.DB
+	dbConf             []string
 	transaction        *sql.Tx
 	docInsert          *sql.Stmt
 	attrAccum          AttrAccumulator
@@ -86,6 +88,7 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	}
 	ans := &TTExtractor{
 		database:         database,
+		dbConf:           conf.GetDbConfSettings(),
 		corpusID:         conf.GetCorpus(),
 		atomStruct:       conf.GetAtomStructure(),
 		atomParentStruct: conf.GetAtomParentStructure(),
@@ -333,8 +336,22 @@ func (tte *TTExtractor) insertCounts() {
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	log.Print("INFO: using zero-based indexing when reporting line errors")
 	log.Print("Starting to process the vertical file...")
-	tte.database.Exec("PRAGMA synchronous = OFF")
-	tte.database.Exec("PRAGMA journal_mode = MEMORY")
+	var dbConf []string
+	if len(tte.dbConf) > 0 {
+		dbConf = tte.dbConf
+
+	} else {
+		log.Print("INFO: no database configuration found, using default (see below)")
+		dbConf = []string{
+			"PRAGMA synchronous = OFF",
+			"PRAGMA journal_mode = MEMORY",
+		}
+	}
+	for _, cnf := range dbConf {
+		log.Printf("INFO: Applying %s", cnf)
+		tte.database.Exec(cnf)
+	}
+
 	var err error
 	tte.transaction, err = tte.database.Begin()
 	if err != nil {

@@ -64,12 +64,13 @@ type VTEConf struct {
 	CountColMod  []string `json:"countColMod"`
 	CalcARF      bool     `json:"calcARF"`
 
-	VerticalFile string       `json:"verticalFile"`
-	DBFile       string       `json:"dbFile"`
-	Encoding     string       `json:"encoding"`
-	SelfJoin     SelfJoinConf `json:"selfJoin"`
-	IndexedCols  []string     `json:"indexedCols"`
-	BibView      BibViewConf  `json:"bibView"`
+	VerticalFile   string       `json:"verticalFile"`
+	DBFile         string       `json:"dbFile"`
+	DBConfSettings []string     `json:"dbConfSettings"`
+	Encoding       string       `json:"encoding"`
+	SelfJoin       SelfJoinConf `json:"selfJoin"`
+	IndexedCols    []string     `json:"indexedCols"`
+	BibView        BibViewConf  `json:"bibView"`
 
 	Filter FilterConf `json:"filter"`
 }
@@ -128,6 +129,10 @@ func (c *VTEConf) GetFilterFn() string {
 
 func (c *VTEConf) GetMaxNumErrors() int {
 	return c.MaxNumErrors
+}
+
+func (c *VTEConf) GetDbConfSettings() []string {
+	return c.DBConfSettings
 }
 
 func LoadConf(confPath string) *VTEConf {
