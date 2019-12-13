@@ -198,7 +198,6 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 	if st.IsEmpty {
 		_, err3 := tte.attrAccum.end(line, st.Name)
 		if err3 != nil {
-			fmt.Println("ERR HERE >>>> ", err3)
 			tte.reportErrorOnLine(line, err3)
 			tte.incNumErrorsAndTest()
 		}
@@ -243,6 +242,7 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 	if err2 != nil {
 		tte.reportErrorOnLine(line, err2)
 		tte.incNumErrorsAndTest()
+		return
 	}
 
 	if accumItem.elm.Name == tte.atomStruct ||

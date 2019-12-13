@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	version = "0.6.1"
+	version = "0.7.0"
 )
 
 func dumpNewConf() {
@@ -68,6 +68,7 @@ func exportData(confPath string, appendData bool) {
 	}
 
 	dbConn := db.OpenDatabase(conf.DBFile)
+	defer dbConn.Close()
 
 	if !appendData {
 		if !os.IsNotExist(ferr) {
