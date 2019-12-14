@@ -200,6 +200,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 		if err3 != nil {
 			tte.reportErrorOnLine(line, err3)
 			tte.incNumErrorsAndTest()
+			return
 		}
 	}
 
@@ -335,7 +336,7 @@ func (tte *TTExtractor) insertCounts() {
 // faster.
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	log.Print("INFO: using zero-based indexing when reporting line errors")
-	log.Print("Starting to process the vertical file...")
+	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
 	var dbConf []string
 	if len(tte.dbConf) > 0 {
 		dbConf = tte.dbConf
