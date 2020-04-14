@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/czcorpus/vert-tagextract/fs"
-	"github.com/tomachalek/vertigo/v3"
+	"github.com/tomachalek/vertigo/v4"
 )
 
 const (

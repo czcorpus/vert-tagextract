@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/czcorpus/vert-tagextract/cnf"
@@ -28,7 +29,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/ptcount"
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
-	"github.com/tomachalek/vertigo/v3"
+	"github.com/tomachalek/vertigo/v4"
 )
 
 // TTEConfProvider defines an object able to
@@ -74,13 +75,14 @@ type TTExtractor struct {
 	columnModders      []*modders.ModderChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
+	stopChan           chan struct{}
+	signalChan         chan os.Signal
 }
 
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
 func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
-	colgenFn colgen.AlignedColGenFn) (*TTExtractor, error) {
-	fmt.Println("XXX: ", conf.GetNgrams())
+	colgenFn colgen.AlignedColGenFn, stopChan chan struct{}) (*TTExtractor, error) {
 	filter, err := LoadCustomFilter(conf.GetFilterLib(), conf.GetFilterFn())
 	if err != nil {
 		return nil, err
@@ -99,6 +101,7 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		columnModders:    make([]*modders.ModderChain, len(conf.GetNgrams().AttrColumns)),
 		filter:           filter,
 		maxNumErrors:     conf.GetMaxNumErrors(),
+		stopChan:         stopChan,
 	}
 
 	for i, m := range conf.GetNgrams().ColumnMods {
@@ -119,6 +122,10 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	}
 
 	return ans, nil
+}
+
+func (tte *TTExtractor) StopChannel() chan struct{} {
+	return tte.stopChan
 }
 
 func (tte *TTExtractor) GetNumTokens() int {
@@ -388,7 +395,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 			if tte.ngramConf.CalcARF {
 				log.Print("####### 2nd run - calculating ARF ###################")
 				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.ngramConf, tte.GetNumTokens(),
-					tte.columnModders, tte.atomStruct)
+					tte.columnModders, tte.atomStruct, tte.StopChannel())
 				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
 				if parserErr != nil {
 					log.Fatal("ERROR: ", parserErr)
