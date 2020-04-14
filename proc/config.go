@@ -60,9 +60,10 @@ type VTEConf struct {
 	// column position) we want to count. This can be used to extract
 	// all the unique PoS tags or frequency information about words/lemmas.
 	// If omitted then the function is disabled.
-	CountColumns []int    `json:"countColumns"`
-	CountColMod  []string `json:"countColMod"`
-	CalcARF      bool     `json:"calcARF"`
+	CountColumns   []int    `json:"countColumns"`
+	CountColMod    []string `json:"countColMod"`
+	CountNgramSize int      `json:"countNgramSize"`
+	CalcARF        bool     `json:"calcARF"`
 
 	VerticalFile   string       `json:"verticalFile"`
 	DBFile         string       `json:"dbFile"`
@@ -115,6 +116,10 @@ func (c *VTEConf) GetCountColumns() []int {
 	return c.CountColumns
 }
 
+func (c *VTEConf) GetCountNgramSize() int {
+	return c.CountNgramSize
+}
+
 func (c *VTEConf) HasConfiguredFilter() bool {
 	return c.Filter.Lib != "" && c.Filter.Fn != ""
 }
@@ -144,6 +149,10 @@ func LoadConf(confPath string) *VTEConf {
 	err2 := json.Unmarshal(rawData, &conf)
 	if err2 != nil {
 		log.Fatal(err2)
+	}
+	if conf.CountNgramSize == 0 {
+		conf.CountNgramSize = 1
+		log.Print("INFO: countNgramSize not specified - setting to 1")
 	}
 	return &conf
 }
