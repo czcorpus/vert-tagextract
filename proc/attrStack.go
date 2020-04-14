@@ -19,7 +19,7 @@ package proc
 import (
 	"fmt"
 
-	"github.com/tomachalek/vertigo/v3"
+	"github.com/tomachalek/vertigo/v4"
 )
 
 // -----------------------------------------------

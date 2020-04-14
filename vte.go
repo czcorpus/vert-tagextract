@@ -22,18 +22,20 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	"github.com/czcorpus/vert-tagextract/proc"
-	"github.com/tomachalek/vertigo/v3"
+	"github.com/tomachalek/vertigo/v4"
 )
 
 const (
-	version = "0.8.0"
+	version = "0.9.0"
 )
 
 func dumpNewConf() {
@@ -93,7 +95,17 @@ func exportData(confPath string, appendData bool) {
 		}
 	}
 
-	tte, err := proc.NewTTExtractor(dbConn, conf, fn)
+	signalChan := make(chan os.Signal)
+	signal.Notify(signalChan, os.Interrupt)
+	signal.Notify(signalChan, syscall.SIGTERM)
+	stopChan := make(chan struct{})
+	go func() {
+		for range signalChan {
+			log.Print("WARNING: vte work interrupted by user command - the result will be incomplete")
+			close(stopChan)
+		}
+	}()
+	tte, err := proc.NewTTExtractor(dbConn, conf, fn, stopChan)
 	if err != nil {
 		log.Fatal(err)
 	}

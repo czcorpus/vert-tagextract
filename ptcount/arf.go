@@ -23,7 +23,7 @@ import (
 
 	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
-	"github.com/tomachalek/vertigo/v3"
+	"github.com/tomachalek/vertigo/v4"
 )
 
 // Calculate ARF for processed n-grams. Please note that the way
@@ -75,18 +75,24 @@ type ARFCalculator struct {
 	numTokens     int
 	columnModders []*modders.ModderChain
 	atomStruct    string
+	stopChan      chan struct{}
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
 func NewARFCalculator(counts map[string]*NgramCounter, ngramConf *cnf.NgramConf, numTokens int,
-	columnModders []*modders.ModderChain, atomStruct string) *ARFCalculator {
+	columnModders []*modders.ModderChain, atomStruct string, stopChan chan struct{}) *ARFCalculator {
 	return &ARFCalculator{
 		numTokens:     numTokens,
 		counts:        counts,
 		ngramConf:     ngramConf,
 		columnModders: columnModders,
 		atomStruct:    atomStruct,
+		stopChan:      stopChan,
 	}
+}
+
+func (arfc *ARFCalculator) StopChannel() chan struct{} {
+	return arfc.stopChan
 }
 
 // ProcToken is called by vertigo parser when a token is encountered
@@ -136,9 +142,11 @@ func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, line in
 // to obtain correct ARF results.
 func (arfc *ARFCalculator) Finalize() {
 	for k, val := range arfc.counts {
-		cnt := arfc.counts[k]
-		avgDist := float64(arfc.numTokens) / float64(cnt.Count())
-		val.ARF().ARF += min(avgDist, val.ARF().FirstIdx+arfc.numTokens-val.ARF().PrevTokIdx)
-		val.ARF().ARF = math.Round(val.ARF().ARF/avgDist*1000) / 1000.0
+		if val.HasARF() {
+			cnt := arfc.counts[k]
+			avgDist := float64(arfc.numTokens) / float64(cnt.Count())
+			val.ARF().ARF += min(avgDist, val.ARF().FirstIdx+arfc.numTokens-val.ARF().PrevTokIdx)
+			val.ARF().ARF = math.Round(val.ARF().ARF/avgDist*1000) / 1000.0
+		}
 	}
 }

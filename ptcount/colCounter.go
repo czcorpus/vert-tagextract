@@ -18,7 +18,7 @@ package ptcount
 import (
 	"strings"
 
-	"github.com/tomachalek/vertigo/v3"
+	"github.com/tomachalek/vertigo/v4"
 )
 
 // Position specifies positional attributes
