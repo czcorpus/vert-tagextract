@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proc
+package cnf
 
 import (
 	"encoding/json"
@@ -44,6 +44,18 @@ type FilterConf struct {
 	Fn  string `json:"fn"`
 }
 
+// NgramConf configures positional attributes (referred by their
+// column position) we want to store and count as n-grams. This can
+// be used to extract all the unique PoS tags or frequency information
+// about words/lemmas.
+type NgramConf struct {
+	AttrColumns    []int    `json:"attrColumns"`
+	ColumnMods     []string `json:"columnMods"`
+	NgramSize      int      `json:"ngramSize"`
+	UniqKeyColumns []int    `json:"uniqKeyColumns"`
+	CalcARF        bool     `json:"calcARF"`
+}
+
 // VTEConf holds configuration for a concrete
 // data extraction task.
 type VTEConf struct {
@@ -56,14 +68,9 @@ type VTEConf struct {
 	MaxNumErrors int                 `json:"maxNumErrors"`
 	Structures   map[string][]string `json:"structures"`
 
-	// ColumnCounts configures positional attributes (referred by their
-	// column position) we want to count. This can be used to extract
-	// all the unique PoS tags or frequency information about words/lemmas.
+	// Ngrams - see NgramConf
 	// If omitted then the function is disabled.
-	CountColumns   []int    `json:"countColumns"`
-	CountColMod    []string `json:"countColMod"`
-	CountNgramSize int      `json:"countNgramSize"`
-	CalcARF        bool     `json:"calcARF"`
+	Ngrams NgramConf `json:"ngrams"`
 
 	VerticalFile   string       `json:"verticalFile"`
 	DBFile         string       `json:"dbFile"`
@@ -88,14 +95,6 @@ func (c *VTEConf) GetCorpus() string {
 	return c.Corpus
 }
 
-func (c *VTEConf) GetCountColMod() []string {
-	return c.CountColMod
-}
-
-func (c *VTEConf) GetCalcARF() bool {
-	return c.CalcARF
-}
-
 func (c *VTEConf) GetAtomStructure() string {
 	return c.AtomStructure
 }
@@ -112,12 +111,8 @@ func (c *VTEConf) GetStructures() map[string][]string {
 	return c.Structures
 }
 
-func (c *VTEConf) GetCountColumns() []int {
-	return c.CountColumns
-}
-
-func (c *VTEConf) GetCountNgramSize() int {
-	return c.CountNgramSize
+func (c *VTEConf) GetNgrams() *NgramConf {
+	return &c.Ngrams
 }
 
 func (c *VTEConf) HasConfiguredFilter() bool {
@@ -149,10 +144,6 @@ func LoadConf(confPath string) *VTEConf {
 	err2 := json.Unmarshal(rawData, &conf)
 	if err2 != nil {
 		log.Fatal(err2)
-	}
-	if conf.CountNgramSize == 0 {
-		conf.CountNgramSize = 1
-		log.Print("INFO: countNgramSize not specified - setting to 1")
 	}
 	return &conf
 }

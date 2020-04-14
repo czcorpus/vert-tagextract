@@ -22,6 +22,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	"github.com/czcorpus/vert-tagextract/ptcount"
@@ -39,10 +40,7 @@ type TTEConfProvider interface {
 	GetStackStructEval() bool
 	GetMaxNumErrors() int
 	GetStructures() map[string][]string
-	GetCountColumns() []int
-	GetCountNgramSize() int
-	GetCountColMod() []string
-	GetCalcARF() bool
+	GetNgrams() *cnf.NgramConf
 	HasConfiguredFilter() bool
 	GetFilterLib() string
 	GetFilterFn() string
@@ -71,11 +69,9 @@ type TTExtractor struct {
 	attrNames          []string
 	colgenFn           colgen.AlignedColGenFn
 	currAtomAttrs      map[string]interface{}
+	ngramConf          *cnf.NgramConf
 	currNgram          *ptcount.NgramCounter
-	countColumns       []int
-	countNgramSize     int
 	columnModders      []*modders.ModderChain
-	calcARF            bool
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
 }
@@ -84,7 +80,7 @@ type TTExtractor struct {
 // instantiate proper TTExtractor.
 func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	colgenFn colgen.AlignedColGenFn) (*TTExtractor, error) {
-
+	fmt.Println("XXX: ", conf.GetNgrams())
 	filter, err := LoadCustomFilter(conf.GetFilterLib(), conf.GetFilterFn())
 	if err != nil {
 		return nil, err
@@ -98,16 +94,14 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		lastAtomOpenLine: -1,
 		structures:       conf.GetStructures(),
 		colgenFn:         colgenFn,
-		countColumns:     conf.GetCountColumns(),
-		countNgramSize:   conf.GetCountNgramSize(),
-		calcARF:          conf.GetCalcARF(),
+		ngramConf:        conf.GetNgrams(),
 		colCounts:        make(map[string]*ptcount.NgramCounter),
-		columnModders:    make([]*modders.ModderChain, len(conf.GetCountColumns())),
+		columnModders:    make([]*modders.ModderChain, len(conf.GetNgrams().AttrColumns)),
 		filter:           filter,
 		maxNumErrors:     conf.GetMaxNumErrors(),
 	}
 
-	for i, m := range conf.GetCountColMod() {
+	for i, m := range conf.GetNgrams().ColumnMods {
 		values := strings.Split(m, ":")
 		if len(values) > 0 {
 			mod := make([]modders.Modder, 0, len(values))
@@ -157,8 +151,8 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
 
-		attributes := make([]string, len(tte.countColumns))
-		for i, idx := range tte.countColumns {
+		attributes := make([]string, len(tte.ngramConf.AttrColumns))
+		for i, idx := range tte.ngramConf.AttrColumns {
 			v := tk.PosAttrByIndex(idx)
 			attributes[i] = tte.columnModders[i].Mod(v)
 		}
@@ -166,7 +160,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 		if tte.currNgram != nil {
 			tte.currNgram.AddToken(attributes)
 			if tte.currNgram.CurrLength() == tte.currNgram.Length() {
-				key := tte.currNgram.UniqueID()
+				key := tte.currNgram.UniqueID(tte.ngramConf.UniqKeyColumns)
 				cnt, ok := tte.colCounts[key]
 				if !ok {
 					tte.colCounts[key] = tte.currNgram
@@ -178,7 +172,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 			}
 		}
 		if tte.currNgram == nil {
-			tte.currNgram = ptcount.NewNgramCounter(tte.countNgramSize, attributes)
+			tte.currNgram = ptcount.NewNgramCounter(tte.ngramConf.NgramSize)
 		}
 	}
 }
@@ -325,7 +319,7 @@ func (tte *TTExtractor) generateAttrList() []string {
 }
 
 func (tte *TTExtractor) insertCounts() {
-	colItems := append(db.GenerateColCountNames(tte.countColumns), "corpus_id", "count", "arf")
+	colItems := append(db.GenerateColCountNames(tte.ngramConf.AttrColumns), "corpus_id", "count", "arf")
 	ins := db.PrepareInsert(tte.transaction, "colcounts", colItems)
 	i := 0
 	for _, count := range tte.colCounts {
@@ -389,12 +383,11 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 
 	} else {
 		log.Print("...DONE")
-		if len(tte.countColumns) > 0 {
+		if len(tte.ngramConf.AttrColumns) > 0 {
 
-			if tte.calcARF {
+			if tte.ngramConf.CalcARF {
 				log.Print("####### 2nd run - calculating ARF ###################")
-				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.countColumns,
-					tte.countNgramSize, tte.GetNumTokens(),
+				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.ngramConf, tte.GetNumTokens(),
 					tte.columnModders, tte.atomStruct)
 				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
 				if parserErr != nil {

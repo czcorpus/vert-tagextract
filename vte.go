@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	"github.com/czcorpus/vert-tagextract/proc"
@@ -32,11 +33,11 @@ import (
 )
 
 const (
-	version = "0.7.2"
+	version = "0.8.0"
 )
 
 func dumpNewConf() {
-	conf := proc.VTEConf{}
+	conf := cnf.VTEConf{}
 	conf.Encoding = "UTF-8"
 	conf.AtomStructure = "p"
 	conf.Structures = make(map[string][]string)
@@ -46,7 +47,6 @@ func dumpNewConf() {
 	conf.BibView.Cols = []string{"doc_id", "doc_title", "doc_author", "doc_publisher"}
 	conf.BibView.IDAttr = "doc_id"
 	conf.SelfJoin.ArgColumns = []string{}
-	conf.CountColumns = []int{}
 	b, err := json.MarshalIndent(conf, "", "  ")
 	if err != nil {
 		log.Fatalf("Failed to dump a new config: %s", err)
@@ -56,7 +56,7 @@ func dumpNewConf() {
 }
 
 func exportData(confPath string, appendData bool) {
-	conf := proc.LoadConf(confPath)
+	conf := cnf.LoadConf(confPath)
 
 	_, ferr := os.Stat(conf.DBFile)
 	if os.IsNotExist(ferr) && appendData {
@@ -74,7 +74,7 @@ func exportData(confPath string, appendData bool) {
 		if !os.IsNotExist(ferr) {
 			db.DropExisting(dbConn)
 		}
-		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.CountColumns)
+		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.Ngrams.AttrColumns)
 		if conf.HasConfiguredBib() {
 			db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
 		}
