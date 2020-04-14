@@ -25,6 +25,12 @@ import (
 	"github.com/tomachalek/vertigo/v3"
 )
 
+// Calculate ARF for processed n-grams. Please note that the way
+// this module closes unfinished n-grams is not 100% compatible with
+// the one TTExtractor does this. The difference may occur in case
+// a corpus contains nested atom structures (e.g. <p> within <p>,
+// <s> within <s> etc.).
+
 // For more information about ARF definition and possible calculation
 // please see e.g.:
 // https://www.sketchengine.eu/documentation/average-reduced-frequency/
@@ -68,17 +74,19 @@ type ARFCalculator struct {
 	currNgram     *NgramCounter
 	numTokens     int
 	columnModders []*modders.ModderChain
+	atomStruct    string
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
 func NewARFCalculator(counts map[string]*NgramCounter, countColumns []int, ngramSize int, numTokens int,
-	columnModders []*modders.ModderChain) *ARFCalculator {
+	columnModders []*modders.ModderChain, atomStruct string) *ARFCalculator {
 	return &ARFCalculator{
 		numTokens:     numTokens,
 		counts:        counts,
 		countColumns:  countColumns,
 		columnModders: columnModders,
 		ngramSize:     ngramSize,
+		atomStruct:    atomStruct,
 	}
 }
 
@@ -118,7 +126,11 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
 func (arfc *ARFCalculator) ProcStruct(strc *vertigo.Structure, line int, err error) {}
 
 // ProcStructClose is used by Vertigo parser but we don't need it here
-func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, line int, err error) {}
+func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, line int, err error) {
+	if strc.Name == arfc.atomStruct {
+		arfc.currNgram = nil
+	}
+}
 
 // Finalize performs some final calculations on obtained
 // (and continuouslz calculated) data. It is required to

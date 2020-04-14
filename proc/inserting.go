@@ -390,7 +390,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 				log.Print("####### 2nd run - calculating ARF ###################")
 				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.countColumns,
 					tte.countNgramSize, tte.GetNumTokens(),
-					tte.columnModders)
+					tte.columnModders, tte.atomStruct)
 				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
 				if parserErr != nil {
 					log.Fatal("ERROR: ", parserErr)
