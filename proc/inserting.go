@@ -327,6 +327,7 @@ func (tte *TTExtractor) generateAttrList() []string {
 func (tte *TTExtractor) insertCounts() {
 	colItems := append(db.GenerateColCountNames(tte.countColumns), "corpus_id", "count", "arf")
 	ins := db.PrepareInsert(tte.transaction, "colcounts", colItems)
+	i := 0
 	for _, count := range tte.colCounts {
 		args := make([]interface{}, count.Width()+3)
 		count.ForEachAttr(func(v string, i int) {
@@ -341,6 +342,10 @@ func (tte *TTExtractor) insertCounts() {
 			args[count.Width()+2] = -1
 		}
 		ins.Exec(args...)
+		if i > 0 && i%100000 == 0 {
+			log.Printf("... written %d records", i)
+		}
+		i++
 	}
 }
 
