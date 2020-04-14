@@ -30,10 +30,6 @@ type Position struct {
 // NgramCounter stores an n-gram with multiple attributes
 // per position along absolute freq. information and optionally
 // with ARF information.
-// Please note that it is expected that
-// any instance should have at least the first position
-// of the n-gram filled-in. That is why it is recommended
-// to use the NewNgramCounter() factory which ensures this.
 type NgramCounter struct {
 	count  int
 	tokens []Position
@@ -42,10 +38,12 @@ type NgramCounter struct {
 
 func (c *NgramCounter) String() string {
 	ans := make([]string, len(c.tokens))
-	for i, v := range c.tokens {
-		ans[i] = v.Columns[0]
+	if len(c.tokens) > 0 {
+		for i, v := range c.tokens {
+			ans[i] = v.Columns[0]
+		}
 	}
-	return strings.Join(ans, "#")
+	return strings.Join(ans, " ")
 }
 
 // Length returns n-gram length (1 = unigram, 2 = bigram,...)
@@ -63,7 +61,10 @@ func (c *NgramCounter) CurrLength() int {
 // unique records in the result
 // (e.g. [word, lemma, pos] means width of 3)
 func (c *NgramCounter) Width() int {
-	return len(c.tokens[0].Columns)
+	if len(c.tokens) > 0 {
+		return len(c.tokens[0].Columns)
+	}
+	return 0
 }
 
 // HasARF tests whether ARF calculation
@@ -108,7 +109,7 @@ func (c *NgramCounter) ForEachAttr(fn func(item string, i int)) {
 			fn(v, i)
 		}
 
-	} else {
+	} else if len(c.tokens) > 1 {
 		for i := range c.tokens[0].Columns {
 			fn(c.columnNgram(i), i)
 		}
@@ -132,20 +133,19 @@ func (c *NgramCounter) AddToken(pos []string) {
 }
 
 // UniqueID creates an unique ngram identifier
-func (c *NgramCounter) UniqueID() string {
-	ans := make([]string, len(c.tokens))
-	for i, pos := range c.tokens {
-		ans[i] = strings.Join(pos.Columns, "")
+func (c *NgramCounter) UniqueID(columns []int) string {
+	ans := make([]string, len(columns))
+	for i, col := range columns {
+		ans[i] = c.columnNgram(col)
 	}
 	return strings.Join(ans, " ")
 }
 
-// NewNgramCounter creates a new n-mgra with count = 1
-func NewNgramCounter(size int, zeroPos []string) *NgramCounter {
+// NewNgramCounter creates a new n-gram with count = 1
+func NewNgramCounter(size int) *NgramCounter {
 	ans := &NgramCounter{
 		count:  1,
 		tokens: make([]Position, 0, size),
 	}
-	ans.tokens = append(ans.tokens, Position{Columns: zeroPos})
 	return ans
 }

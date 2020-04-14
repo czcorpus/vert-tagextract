@@ -21,6 +21,7 @@ import (
 	"log"
 	"math"
 
+	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
 	"github.com/tomachalek/vertigo/v3"
 )
@@ -68,9 +69,8 @@ func (ws WordARF) String() string {
 // [ngram_uniq_id] => NgramCounter pairs we
 // obtain in the 1st pass.
 type ARFCalculator struct {
-	countColumns  []int
+	ngramConf     *cnf.NgramConf
 	counts        map[string]*NgramCounter
-	ngramSize     int
 	currNgram     *NgramCounter
 	numTokens     int
 	columnModders []*modders.ModderChain
@@ -78,22 +78,21 @@ type ARFCalculator struct {
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
-func NewARFCalculator(counts map[string]*NgramCounter, countColumns []int, ngramSize int, numTokens int,
+func NewARFCalculator(counts map[string]*NgramCounter, ngramConf *cnf.NgramConf, numTokens int,
 	columnModders []*modders.ModderChain, atomStruct string) *ARFCalculator {
 	return &ARFCalculator{
 		numTokens:     numTokens,
 		counts:        counts,
-		countColumns:  countColumns,
+		ngramConf:     ngramConf,
 		columnModders: columnModders,
-		ngramSize:     ngramSize,
 		atomStruct:    atomStruct,
 	}
 }
 
 // ProcToken is called by vertigo parser when a token is encountered
 func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
-	attributes := make([]string, len(arfc.countColumns))
-	for i, idx := range arfc.countColumns {
+	attributes := make([]string, len(arfc.ngramConf.AttrColumns))
+	for i, idx := range arfc.ngramConf.AttrColumns {
 		v := tk.PosAttrByIndex(idx)
 		attributes[i] = arfc.columnModders[i].Mod(v)
 	}
@@ -101,7 +100,7 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
 	if arfc.currNgram != nil {
 		arfc.currNgram.AddToken(attributes)
 		if arfc.currNgram.CurrLength() == arfc.currNgram.Length() {
-			key := arfc.currNgram.UniqueID()
+			key := arfc.currNgram.UniqueID(arfc.ngramConf.UniqKeyColumns)
 			cnt, ok := arfc.counts[key]
 			if !ok {
 				log.Print("ERROR: token not found")
@@ -118,7 +117,7 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
 		}
 	}
 	if arfc.currNgram == nil {
-		arfc.currNgram = NewNgramCounter(arfc.ngramSize, attributes)
+		arfc.currNgram = NewNgramCounter(arfc.ngramConf.NgramSize)
 	}
 }
 
