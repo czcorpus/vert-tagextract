@@ -21,19 +21,49 @@ import (
 	"github.com/tomachalek/vertigo/v3"
 )
 
-// ColumnCounter stores token tuple along with abs. freq.
-// information
-type ColumnCounter struct {
+// Position specifies positional attributes
+// (e.g. word, lemma, tag) at some n-gram position
+type Position struct {
+	Columns []string
+}
+
+// NgramCounter stores an n-gram with multiple attributes
+// per position along absolute freq. information and optionally
+// with ARF information.
+// Please note that it is expected that
+// any instance should have at least the first position
+// of the n-gram filled-in. That is why it is recommended
+// to use the NewNgramCounter() factory which ensures this.
+type NgramCounter struct {
 	count  int
-	values []string
+	tokens []Position
 	arf    *WordARF // can be nil
+}
+
+func (c *NgramCounter) String() string {
+	ans := make([]string, len(c.tokens))
+	for i, v := range c.tokens {
+		ans[i] = v.Columns[0]
+	}
+	return strings.Join(ans, "#")
+}
+
+// Length returns n-gram length (1 = unigram, 2 = bigram,...)
+func (c *NgramCounter) Length() int {
+	return cap(c.tokens)
+}
+
+// CurrLength returns actual n-gram length (i.e. if a trigram has only
+// first position filled-in then the returned value is 1)
+func (c *NgramCounter) CurrLength() int {
+	return len(c.tokens)
 }
 
 // Width says how many columns are used for
 // unique records in the result
 // (e.g. [word, lemma, pos] means width of 3)
-func (c *ColumnCounter) Width() int {
-	return len(c.values)
+func (c *NgramCounter) Width() int {
+	return len(c.tokens[0].Columns)
 }
 
 // HasARF tests whether ARF calculation
@@ -42,13 +72,13 @@ func (c *ColumnCounter) Width() int {
 // does not want ARF to be calculated of
 // that it is not set for the specific
 // record yet.
-func (c *ColumnCounter) HasARF() bool {
+func (c *NgramCounter) HasARF() bool {
 	return c.arf != nil
 }
 
 // AddARF creates a new helper record to
 // calculate ARF for the record.
-func (c *ColumnCounter) AddARF(tk *vertigo.Token) {
+func (c *NgramCounter) AddARF(tk *vertigo.Token) {
 	c.arf = &WordARF{
 		ARF:        0,
 		PrevTokIdx: -1,
@@ -57,40 +87,65 @@ func (c *ColumnCounter) AddARF(tk *vertigo.Token) {
 }
 
 // ARF returns ARF helper record
-func (c *ColumnCounter) ARF() *WordARF {
+func (c *NgramCounter) ARF() *WordARF {
 	return c.arf
 }
 
-// MapTuple calls the provided function on all
+func (c *NgramCounter) columnNgram(colIdx int) string {
+	tmp := make([]string, len(c.tokens))
+	for i, v := range c.tokens {
+		tmp[i] = v.Columns[colIdx]
+	}
+	return strings.Join(tmp, " ")
+}
+
+// ForEachAttr calls the provided function on all
 // of stored columns from vertical file
 // (e.g. fn([word]) then fn([lemma]) then fn([pos]))
-func (c *ColumnCounter) MapTuple(fn func(item string, i int)) {
-	for i, v := range c.values {
-		fn(v, i)
+func (c *NgramCounter) ForEachAttr(fn func(item string, i int)) {
+	if len(c.tokens) == 1 {
+		for i, v := range c.tokens[0].Columns {
+			fn(v, i)
+		}
+
+	} else {
+		for i := range c.tokens[0].Columns {
+			fn(c.columnNgram(i), i)
+		}
 	}
 }
 
 // Count tells how many occurences of the
-// tuple has been found.
-func (c *ColumnCounter) Count() int {
+// ngram has been found.
+func (c *NgramCounter) Count() int {
 	return c.count
 }
 
-// IncCount increase number of occurences for the token tuple
-func (c *ColumnCounter) IncCount() {
+// IncCount increase number of occurences for the n-gram
+func (c *NgramCounter) IncCount() {
 	c.count++
 }
 
-// NewColumnCounter creates a new token tuple with count = 1
-func NewColumnCounter(values []string) *ColumnCounter {
-	return &ColumnCounter{
-		count:  1,
-		values: values,
-	}
+// AddToken add additional (besides 0th) tokens to the n-gram
+func (c *NgramCounter) AddToken(pos []string) {
+	c.tokens = append(c.tokens, Position{Columns: pos})
 }
 
-// MkTupleKey creates a string key out of provided list of column values.
-// This is used internally to countn
-func MkTupleKey(values []string) string {
-	return strings.Join(values, "")
+// UniqueID creates an unique ngram identifier
+func (c *NgramCounter) UniqueID() string {
+	ans := make([]string, len(c.tokens))
+	for i, pos := range c.tokens {
+		ans[i] = strings.Join(pos.Columns, "")
+	}
+	return strings.Join(ans, " ")
+}
+
+// NewNgramCounter creates a new n-mgra with count = 1
+func NewNgramCounter(size int, zeroPos []string) *NgramCounter {
+	ans := &NgramCounter{
+		count:  1,
+		tokens: make([]Position, 0, size),
+	}
+	ans.tokens = append(ans.tokens, Position{Columns: zeroPos})
+	return ans
 }

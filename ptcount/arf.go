@@ -40,7 +40,7 @@ func min(v1 float64, v2 int) float64 {
 	return float64(v2)
 }
 
-// WordARF is used as an attribute of ColumnCounter
+// WordARF is used as an attribute of NgramCounter
 // to calculate ARF. The attributes are designed for
 // two-pass calculation where in the 1st pass we obtain
 // avg distance between word instance and in the 2nd
@@ -59,47 +59,59 @@ func (ws WordARF) String() string {
 }
 
 // ARFCalculator calculates ARF for all the
-// [tuple_uniq_key] => ColumnCounter pairs we
+// [ngram_uniq_id] => NgramCounter pairs we
 // obtain in the 1st pass.
 type ARFCalculator struct {
 	countColumns  []int
-	counts        map[string]*ColumnCounter
+	counts        map[string]*NgramCounter
+	ngramSize     int
+	currNgram     *NgramCounter
 	numTokens     int
 	columnModders []*modders.ModderChain
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
-func NewARFCalculator(counts map[string]*ColumnCounter, countColumns []int, numTokens int,
+func NewARFCalculator(counts map[string]*NgramCounter, countColumns []int, ngramSize int, numTokens int,
 	columnModders []*modders.ModderChain) *ARFCalculator {
 	return &ARFCalculator{
 		numTokens:     numTokens,
 		counts:        counts,
 		countColumns:  countColumns,
 		columnModders: columnModders,
+		ngramSize:     ngramSize,
 	}
 }
 
 // ProcToken is called by vertigo parser when a token is encountered
 func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
-	colTuple := make([]string, len(arfc.countColumns))
+	attributes := make([]string, len(arfc.countColumns))
 	for i, idx := range arfc.countColumns {
 		v := tk.PosAttrByIndex(idx)
-		colTuple[i] = arfc.columnModders[i].Mod(v)
+		attributes[i] = arfc.columnModders[i].Mod(v)
 	}
 
-	key := MkTupleKey(colTuple)
-	cnt, ok := arfc.counts[key]
-	if !ok {
-		log.Print("ERROR: token not found")
-		return
+	if arfc.currNgram != nil {
+		arfc.currNgram.AddToken(attributes)
+		if arfc.currNgram.CurrLength() == arfc.currNgram.Length() {
+			key := arfc.currNgram.UniqueID()
+			cnt, ok := arfc.counts[key]
+			if !ok {
+				log.Print("ERROR: token not found")
+				return
+			}
+			if !cnt.HasARF() {
+				cnt.AddARF(tk)
+			}
+			if cnt.ARF().PrevTokIdx > -1 {
+				cnt.ARF().ARF += min(float64(arfc.numTokens)/float64(cnt.Count()), tk.Idx-cnt.ARF().PrevTokIdx)
+			}
+			cnt.ARF().PrevTokIdx = tk.Idx
+			arfc.currNgram = nil
+		}
 	}
-	if !cnt.HasARF() {
-		cnt.AddARF(tk)
+	if arfc.currNgram == nil {
+		arfc.currNgram = NewNgramCounter(arfc.ngramSize, attributes)
 	}
-	if cnt.ARF().PrevTokIdx > -1 {
-		cnt.ARF().ARF += min(float64(arfc.numTokens)/float64(cnt.Count()), tk.Idx-cnt.ARF().PrevTokIdx)
-	}
-	cnt.ARF().PrevTokIdx = tk.Idx
 }
 
 // ProcStruct is used by Vertigo parser but we don't need it here

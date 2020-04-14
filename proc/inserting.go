@@ -40,6 +40,7 @@ type TTEConfProvider interface {
 	GetMaxNumErrors() int
 	GetStructures() map[string][]string
 	GetCountColumns() []int
+	GetCountNgramSize() int
 	GetCountColMod() []string
 	GetCalcARF() bool
 	HasConfiguredFilter() bool
@@ -70,10 +71,12 @@ type TTExtractor struct {
 	attrNames          []string
 	colgenFn           colgen.AlignedColGenFn
 	currAtomAttrs      map[string]interface{}
+	currNgram          *ptcount.NgramCounter
 	countColumns       []int
+	countNgramSize     int
 	columnModders      []*modders.ModderChain
 	calcARF            bool
-	colCounts          map[string]*ptcount.ColumnCounter
+	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
 }
 
@@ -96,8 +99,9 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		structures:       conf.GetStructures(),
 		colgenFn:         colgenFn,
 		countColumns:     conf.GetCountColumns(),
+		countNgramSize:   conf.GetCountNgramSize(),
 		calcARF:          conf.GetCalcARF(),
-		colCounts:        make(map[string]*ptcount.ColumnCounter),
+		colCounts:        make(map[string]*ptcount.NgramCounter),
 		columnModders:    make([]*modders.ModderChain, len(conf.GetCountColumns())),
 		filter:           filter,
 		maxNumErrors:     conf.GetMaxNumErrors(),
@@ -127,7 +131,7 @@ func (tte *TTExtractor) GetNumTokens() int {
 	return tte.tokenCounter
 }
 
-func (tte *TTExtractor) GetColCounts() map[string]*ptcount.ColumnCounter {
+func (tte *TTExtractor) GetColCounts() map[string]*ptcount.NgramCounter {
 	return tte.colCounts
 }
 
@@ -153,19 +157,28 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
 
-		colTuple := make([]string, len(tte.countColumns))
+		attributes := make([]string, len(tte.countColumns))
 		for i, idx := range tte.countColumns {
 			v := tk.PosAttrByIndex(idx)
-			colTuple[i] = tte.columnModders[i].Mod(v)
+			attributes[i] = tte.columnModders[i].Mod(v)
 		}
-		key := ptcount.MkTupleKey(colTuple)
-		cnt, ok := tte.colCounts[key]
-		if !ok {
-			cnt = ptcount.NewColumnCounter(colTuple)
-			tte.colCounts[key] = cnt
 
-		} else {
-			cnt.IncCount()
+		if tte.currNgram != nil {
+			tte.currNgram.AddToken(attributes)
+			if tte.currNgram.CurrLength() == tte.currNgram.Length() {
+				key := tte.currNgram.UniqueID()
+				cnt, ok := tte.colCounts[key]
+				if !ok {
+					tte.colCounts[key] = tte.currNgram
+
+				} else {
+					cnt.IncCount()
+				}
+				tte.currNgram = nil
+			}
+		}
+		if tte.currNgram == nil {
+			tte.currNgram = ptcount.NewNgramCounter(tte.countNgramSize, attributes)
 		}
 	}
 }
@@ -264,6 +277,9 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 			log.Fatalf("Failed to insert data: %s", err)
 		}
 		tte.currAtomAttrs = make(map[string]interface{})
+
+		// also reset unfinished n-gram
+		tte.currNgram = nil
 	}
 }
 
@@ -313,7 +329,7 @@ func (tte *TTExtractor) insertCounts() {
 	ins := db.PrepareInsert(tte.transaction, "colcounts", colItems)
 	for _, count := range tte.colCounts {
 		args := make([]interface{}, count.Width()+3)
-		count.MapTuple(func(v string, i int) {
+		count.ForEachAttr(func(v string, i int) {
 			args[i] = v
 		})
 		args[count.Width()] = tte.corpusID
@@ -372,7 +388,8 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 
 			if tte.calcARF {
 				log.Print("####### 2nd run - calculating ARF ###################")
-				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.countColumns, tte.GetNumTokens(),
+				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.countColumns,
+					tte.countNgramSize, tte.GetNumTokens(),
 					tte.columnModders)
 				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
 				if parserErr != nil {
