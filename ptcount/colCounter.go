@@ -24,7 +24,7 @@ import (
 // Position specifies positional attributes
 // (e.g. word, lemma, tag) at some n-gram position
 type Position struct {
-	Columns []string
+	Columns []int
 }
 
 // NgramCounter stores an n-gram with multiple attributes
@@ -34,16 +34,6 @@ type NgramCounter struct {
 	count  int
 	tokens []Position
 	arf    *WordARF // can be nil
-}
-
-func (c *NgramCounter) String() string {
-	ans := make([]string, len(c.tokens))
-	if len(c.tokens) > 0 {
-		for i, v := range c.tokens {
-			ans[i] = v.Columns[0]
-		}
-	}
-	return strings.Join(ans, " ")
 }
 
 // Length returns n-gram length (1 = unigram, 2 = bigram,...)
@@ -92,10 +82,18 @@ func (c *NgramCounter) ARF() *WordARF {
 	return c.arf
 }
 
-func (c *NgramCounter) columnNgram(colIdx int) string {
+func (c *NgramCounter) columnNgram(colIdx int, wd *WordDict) string {
 	tmp := make([]string, len(c.tokens))
 	for i, v := range c.tokens {
-		tmp[i] = v.Columns[colIdx]
+		tmp[i] = wd.Get(v.Columns[colIdx])
+	}
+	return strings.Join(tmp, " ")
+}
+
+func (c *NgramCounter) columnNgramNumeric(colIdx int) string {
+	tmp := make([]string, len(c.tokens))
+	for i, v := range c.tokens {
+		tmp[i] = string(v.Columns[colIdx])
 	}
 	return strings.Join(tmp, " ")
 }
@@ -103,15 +101,15 @@ func (c *NgramCounter) columnNgram(colIdx int) string {
 // ForEachAttr calls the provided function on all
 // of stored columns from vertical file
 // (e.g. fn([word]) then fn([lemma]) then fn([pos]))
-func (c *NgramCounter) ForEachAttr(fn func(item string, i int)) {
+func (c *NgramCounter) ForEachAttr(wDict *WordDict, fn func(item string, i int)) {
 	if len(c.tokens) == 1 {
 		for i, v := range c.tokens[0].Columns {
-			fn(v, i)
+			fn(wDict.Get(v), i)
 		}
 
 	} else if len(c.tokens) > 1 {
 		for i := range c.tokens[0].Columns {
-			fn(c.columnNgram(i), i)
+			fn(c.columnNgram(i, wDict), i)
 		}
 	}
 }
@@ -128,7 +126,7 @@ func (c *NgramCounter) IncCount() {
 }
 
 // AddToken add additional (besides 0th) tokens to the n-gram
-func (c *NgramCounter) AddToken(pos []string) {
+func (c *NgramCounter) AddToken(pos []int) {
 	c.tokens = append(c.tokens, Position{Columns: pos})
 }
 
@@ -136,7 +134,7 @@ func (c *NgramCounter) AddToken(pos []string) {
 func (c *NgramCounter) UniqueID(columns []int) string {
 	ans := make([]string, len(columns))
 	for i, col := range columns {
-		ans[i] = c.columnNgram(col)
+		ans[i] = c.columnNgramNumeric(col)
 	}
 	return strings.Join(ans, " ")
 }

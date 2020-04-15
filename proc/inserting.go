@@ -71,7 +71,8 @@ type TTExtractor struct {
 	colgenFn           colgen.AlignedColGenFn
 	currAtomAttrs      map[string]interface{}
 	ngramConf          *cnf.NgramConf
-	currNgram          *ptcount.NgramCounter
+	currSentence       [][]int
+	valueDict          *ptcount.WordDict
 	columnModders      []*modders.ModderChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
@@ -102,6 +103,8 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		filter:           filter,
 		maxNumErrors:     conf.GetMaxNumErrors(),
 		stopChan:         stopChan,
+		currSentence:     make([][]int, 0, 20),
+		valueDict:        ptcount.NewWordDict(),
 	}
 
 	for i, m := range conf.GetNgrams().ColumnMods {
@@ -132,6 +135,10 @@ func (tte *TTExtractor) GetNumTokens() int {
 	return tte.tokenCounter
 }
 
+func (tte *TTExtractor) WordDict() *ptcount.WordDict {
+	return tte.valueDict
+}
+
 func (tte *TTExtractor) GetColCounts() map[string]*ptcount.NgramCounter {
 	return tte.colCounts
 }
@@ -158,28 +165,27 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
 
-		attributes := make([]string, len(tte.ngramConf.AttrColumns))
+		attributes := make([]int, len(tte.ngramConf.AttrColumns))
 		for i, idx := range tte.ngramConf.AttrColumns {
 			v := tk.PosAttrByIndex(idx)
-			attributes[i] = tte.columnModders[i].Mod(v)
+			attributes[i] = tte.valueDict.Add(tte.columnModders[i].Mod(v))
 		}
 
-		if tte.currNgram != nil {
-			tte.currNgram.AddToken(attributes)
-			if tte.currNgram.CurrLength() == tte.currNgram.Length() {
-				key := tte.currNgram.UniqueID(tte.ngramConf.UniqKeyColumns)
-				cnt, ok := tte.colCounts[key]
-				if !ok {
-					tte.colCounts[key] = tte.currNgram
-
-				} else {
-					cnt.IncCount()
-				}
-				tte.currNgram = nil
+		tte.currSentence = append(tte.currSentence, attributes)
+		if len(tte.currSentence) >= tte.ngramConf.NgramSize {
+			ngram := ptcount.NewNgramCounter(tte.ngramConf.NgramSize)
+			startPos := len(tte.currSentence) - tte.ngramConf.NgramSize
+			for i := startPos; i < len(tte.currSentence); i++ {
+				ngram.AddToken(tte.currSentence[i])
 			}
-		}
-		if tte.currNgram == nil {
-			tte.currNgram = ptcount.NewNgramCounter(tte.ngramConf.NgramSize)
+			key := ngram.UniqueID(tte.ngramConf.UniqKeyColumns)
+			cnt, ok := tte.colCounts[key]
+			if !ok {
+				tte.colCounts[key] = ngram
+
+			} else {
+				cnt.IncCount()
+			}
 		}
 	}
 }
@@ -279,8 +285,8 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 		}
 		tte.currAtomAttrs = make(map[string]interface{})
 
-		// also reset unfinished n-gram
-		tte.currNgram = nil
+		// also reset the current sentence
+		tte.currSentence = tte.currSentence[:0]
 	}
 }
 
@@ -331,7 +337,7 @@ func (tte *TTExtractor) insertCounts() {
 	i := 0
 	for _, count := range tte.colCounts {
 		args := make([]interface{}, count.Width()+3)
-		count.ForEachAttr(func(v string, i int) {
+		count.ForEachAttr(tte.valueDict, func(v string, i int) {
 			args[i] = v
 		})
 		args[count.Width()] = tte.corpusID
@@ -395,7 +401,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 			if tte.ngramConf.CalcARF {
 				log.Print("####### 2nd run - calculating ARF ###################")
 				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.ngramConf, tte.GetNumTokens(),
-					tte.columnModders, tte.atomStruct, tte.StopChannel())
+					tte.columnModders, tte.WordDict(), tte.atomStruct, tte.StopChannel())
 				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
 				if parserErr != nil {
 					log.Fatal("ERROR: ", parserErr)
