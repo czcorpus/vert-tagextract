@@ -71,23 +71,26 @@ func (ws WordARF) String() string {
 type ARFCalculator struct {
 	ngramConf     *cnf.NgramConf
 	counts        map[string]*NgramCounter
-	currNgram     *NgramCounter
+	currSentence  [][]int
 	numTokens     int
 	columnModders []*modders.ModderChain
+	wordDict      *WordDict
 	atomStruct    string
 	stopChan      chan struct{}
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
 func NewARFCalculator(counts map[string]*NgramCounter, ngramConf *cnf.NgramConf, numTokens int,
-	columnModders []*modders.ModderChain, atomStruct string, stopChan chan struct{}) *ARFCalculator {
+	columnModders []*modders.ModderChain, wordDict *WordDict, atomStruct string, stopChan chan struct{}) *ARFCalculator {
 	return &ARFCalculator{
 		numTokens:     numTokens,
 		counts:        counts,
+		currSentence:  make([][]int, 0, 20),
 		ngramConf:     ngramConf,
 		columnModders: columnModders,
 		atomStruct:    atomStruct,
 		stopChan:      stopChan,
+		wordDict:      wordDict,
 	}
 }
 
@@ -97,33 +100,32 @@ func (arfc *ARFCalculator) StopChannel() chan struct{} {
 
 // ProcToken is called by vertigo parser when a token is encountered
 func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
-	attributes := make([]string, len(arfc.ngramConf.AttrColumns))
+	attributes := make([]int, len(arfc.ngramConf.AttrColumns))
 	for i, idx := range arfc.ngramConf.AttrColumns {
 		v := tk.PosAttrByIndex(idx)
-		attributes[i] = arfc.columnModders[i].Mod(v)
+		attributes[i] = arfc.wordDict.Add(arfc.columnModders[i].Mod(v))
 	}
 
-	if arfc.currNgram != nil {
-		arfc.currNgram.AddToken(attributes)
-		if arfc.currNgram.CurrLength() == arfc.currNgram.Length() {
-			key := arfc.currNgram.UniqueID(arfc.ngramConf.UniqKeyColumns)
-			cnt, ok := arfc.counts[key]
-			if !ok {
-				log.Print("ERROR: token not found")
-				return
-			}
-			if !cnt.HasARF() {
-				cnt.AddARF(tk)
-			}
-			if cnt.ARF().PrevTokIdx > -1 {
-				cnt.ARF().ARF += min(float64(arfc.numTokens)/float64(cnt.Count()), tk.Idx-cnt.ARF().PrevTokIdx)
-			}
-			cnt.ARF().PrevTokIdx = tk.Idx
-			arfc.currNgram = nil
+	arfc.currSentence = append(arfc.currSentence, attributes)
+	if len(arfc.currSentence) >= arfc.ngramConf.NgramSize {
+		ngram := NewNgramCounter(arfc.ngramConf.NgramSize)
+		startPos := len(arfc.currSentence) - arfc.ngramConf.NgramSize
+		for i := startPos; i < len(arfc.currSentence); i++ {
+			ngram.AddToken(arfc.currSentence[i])
 		}
-	}
-	if arfc.currNgram == nil {
-		arfc.currNgram = NewNgramCounter(arfc.ngramConf.NgramSize)
+		key := ngram.UniqueID(arfc.ngramConf.UniqKeyColumns)
+		cnt, ok := arfc.counts[key]
+		if !ok {
+			log.Print("ERROR: token not found")
+			return
+		}
+		if !cnt.HasARF() {
+			cnt.AddARF(tk)
+		}
+		if cnt.ARF().PrevTokIdx > -1 {
+			cnt.ARF().ARF += min(float64(arfc.numTokens)/float64(cnt.Count()), tk.Idx-cnt.ARF().PrevTokIdx)
+		}
+		cnt.ARF().PrevTokIdx = tk.Idx
 	}
 }
 
@@ -133,7 +135,7 @@ func (arfc *ARFCalculator) ProcStruct(strc *vertigo.Structure, line int, err err
 // ProcStructClose is used by Vertigo parser but we don't need it here
 func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, line int, err error) {
 	if strc.Name == arfc.atomStruct {
-		arfc.currNgram = nil
+		arfc.currSentence = arfc.currSentence[:0]
 	}
 }
 
