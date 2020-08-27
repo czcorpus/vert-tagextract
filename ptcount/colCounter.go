@@ -16,6 +16,7 @@
 package ptcount
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/tomachalek/vertigo/v4"
@@ -93,7 +94,7 @@ func (c *NgramCounter) columnNgram(colIdx int, wd *WordDict) string {
 func (c *NgramCounter) columnNgramNumeric(colIdx int) string {
 	tmp := make([]string, len(c.tokens))
 	for i, v := range c.tokens {
-		tmp[i] = string(v.Columns[colIdx])
+		tmp[i] = fmt.Sprint(v.Columns[colIdx])
 	}
 	return strings.Join(tmp, " ")
 }

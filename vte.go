@@ -28,14 +28,15 @@ import (
 	"time"
 
 	"github.com/czcorpus/vert-tagextract/cnf"
-	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
-	"github.com/czcorpus/vert-tagextract/proc"
+
 	"github.com/tomachalek/vertigo/v4"
 )
 
-const (
-	version = "0.10.0"
+var (
+	version   string
+	build     string
+	gitCommit string
 )
 
 func dumpNewConf() {
@@ -59,58 +60,23 @@ func dumpNewConf() {
 
 func exportData(confPath string, appendData bool) {
 	conf := cnf.LoadConf(confPath)
-
-	_, ferr := os.Stat(conf.DBFile)
-	if os.IsNotExist(ferr) && appendData {
-		log.Fatalf("Update flag is set but the database %s does not exist", conf.DBFile)
-	}
-
-	if !appendData {
-		log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
-	}
-
-	dbConn := db.OpenDatabase(conf.DBFile)
-	defer dbConn.Close()
-
-	if !appendData {
-		if !os.IsNotExist(ferr) {
-			db.DropExisting(dbConn)
-		}
-		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.Ngrams.AttrColumns)
-		if conf.HasConfiguredBib() {
-			db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
-		}
-	}
-
-	parserConf := &vertigo.ParserConf{
-		InputFilePath:         conf.VerticalFile,
-		StructAttrAccumulator: "nil",
-		Encoding:              conf.Encoding,
-	}
-
-	var fn colgen.AlignedColGenFn
-	if conf.UsesSelfJoin() {
-		fn = func(args map[string]interface{}) string {
-			return colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)(args, conf.SelfJoin.ArgColumns)
-		}
-	}
-
 	signalChan := make(chan os.Signal)
 	signal.Notify(signalChan, os.Interrupt)
 	signal.Notify(signalChan, syscall.SIGTERM)
 	stopChan := make(chan struct{})
+
 	go func() {
 		for range signalChan {
 			log.Print("WARNING: vte work interrupted by user command - the result will be incomplete")
 			close(stopChan)
 		}
 	}()
-	tte, err := proc.NewTTExtractor(dbConn, conf, fn, stopChan)
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	t0 := time.Now()
-	tte.Run(parserConf)
+	err := ExtractData(conf, appendData, stopChan)
+	if err != nil {
+		log.Fatal("FATAL: Failed to extract data: ", err)
+	}
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
 
@@ -130,6 +96,7 @@ func main() {
 		fmt.Println("vte append config.json\n\t(run an export configured in config.json, add data to an existing database)")
 		fmt.Println("vte template\n\t(create a half empty sample config and write it to stdout)")
 		fmt.Println("\n(config file should be named after a respective corpus name, e.g. syn_v4.json)")
+		fmt.Println("vte version\n\tshow detailed version information")
 
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
@@ -159,6 +126,8 @@ func main() {
 	case "template":
 		templateCommand.Parse(os.Args[2:])
 		dumpNewConf()
+	case "version":
+		fmt.Printf("vert-tagextract %s\nbuild date: %s\nlast commit: %s\n", version, build, gitCommit)
 	default:
 		log.Fatalf("Unknown command '%s'", flag.Arg(0))
 	}
