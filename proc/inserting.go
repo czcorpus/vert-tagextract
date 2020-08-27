@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/db"
@@ -31,6 +32,14 @@ import (
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo/v4"
 )
+
+// Status stores some basic information about vertical file processing
+type Status struct {
+	Datetime       time.Time
+	ProcessedAtoms int
+	ProcessedLines int
+	Error          error
+}
 
 // TTEConfProvider defines an object able to
 // provide configuration data for TTExtractor factory.
@@ -78,12 +87,13 @@ type TTExtractor struct {
 	filter             LineFilter
 	stopChan           chan struct{}
 	signalChan         chan os.Signal
+	statusChan         chan Status
 }
 
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
 func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
-	colgenFn colgen.AlignedColGenFn, stopChan chan struct{}) (*TTExtractor, error) {
+	colgenFn colgen.AlignedColGenFn, stopChan chan struct{}, statusChan chan Status) (*TTExtractor, error) {
 	filter, err := LoadCustomFilter(conf.GetFilterLib(), conf.GetFilterFn())
 	if err != nil {
 		return nil, err
@@ -105,6 +115,7 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		stopChan:         stopChan,
 		currSentence:     make([][]int, 0, 20),
 		valueDict:        ptcount.NewWordDict(),
+		statusChan:       statusChan,
 	}
 
 	for i, m := range conf.GetNgrams().ColumnMods {
@@ -151,6 +162,12 @@ func (tte *TTExtractor) incNumErrorsAndTest() {
 }
 
 func (tte *TTExtractor) reportErrorOnLine(lineNum int, err error) {
+	tte.statusChan <- Status{
+		Datetime:       time.Now(),
+		ProcessedAtoms: tte.atomCounter,
+		ProcessedLines: lineNum,
+		Error:          err,
+	}
 	log.Printf("ERROR: Line %d: %s", lineNum, err)
 }
 
@@ -186,6 +203,13 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 			} else {
 				cnt.IncCount()
 			}
+		}
+	}
+	if line%1000 == 0 {
+		tte.statusChan <- Status{
+			Datetime:       time.Now(),
+			ProcessedAtoms: tte.atomCounter,
+			ProcessedLines: line,
 		}
 	}
 }
@@ -249,6 +273,13 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 			tte.currAtomAttrs = attrs
 		}
 	}
+	if line%1000 == 0 {
+		tte.statusChan <- Status{
+			Datetime:       time.Now(),
+			ProcessedAtoms: tte.atomCounter,
+			ProcessedLines: line,
+		}
+	}
 }
 
 // ProcStructClose is a part of vertigo.LineProcessor implementation.
@@ -287,6 +318,13 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 
 		// also reset the current sentence
 		tte.currSentence = tte.currSentence[:0]
+	}
+	if line%1000 == 0 {
+		tte.statusChan <- Status{
+			Datetime:       time.Now(),
+			ProcessedAtoms: tte.atomCounter,
+			ProcessedLines: line,
+		}
 	}
 }
 

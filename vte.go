@@ -29,6 +29,8 @@ import (
 
 	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
+	"github.com/czcorpus/vert-tagextract/library"
+	"github.com/czcorpus/vert-tagextract/proc"
 
 	"github.com/tomachalek/vertigo/v4"
 )
@@ -72,8 +74,14 @@ func exportData(confPath string, appendData bool) {
 		}
 	}()
 
+	statusChan := make(chan proc.Status, 10)
+	go func() {
+		for range statusChan {
+		}
+	}()
+
 	t0 := time.Now()
-	err := ExtractData(conf, appendData, stopChan)
+	err := library.ExtractData(conf, appendData, stopChan, statusChan)
 	if err != nil {
 		log.Fatal("FATAL: Failed to extract data: ", err)
 	}

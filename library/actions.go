@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package library
 
 import (
 	"log"
@@ -30,7 +30,11 @@ import (
 	"github.com/tomachalek/vertigo/v4"
 )
 
-func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}) error {
+// ExtractData extracts structural and/or positional attributes from a vertical file
+// based on the specification in the 'conf' argument.
+// The 'stopChan' can be used to watch handle service shutdown.
+// The 'statusChan' is for getting extraction status information
+func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, statusChan chan proc.Status) error {
 
 	_, ferr := os.Stat(conf.DBFile)
 	if os.IsNotExist(ferr) && appendData {
@@ -70,7 +74,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}) err
 	signalChan := make(chan os.Signal)
 	signal.Notify(signalChan, os.Interrupt)
 	signal.Notify(signalChan, syscall.SIGTERM)
-	tte, err := proc.NewTTExtractor(dbConn, conf, fn, stopChan)
+	tte, err := proc.NewTTExtractor(dbConn, conf, fn, stopChan, statusChan)
 	if err != nil {
 		return err
 	}
