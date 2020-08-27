@@ -431,11 +431,16 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	if parserErr != nil {
 		tte.transaction.Rollback()
 		log.Fatalf("Failed to parse vertical file: %s", parserErr)
+		tte.statusChan <- Status{
+			Datetime:       time.Now(),
+			Error:          parserErr,
+			ProcessedAtoms: tte.atomCounter,
+			ProcessedLines: -1,
+		}
 
 	} else {
 		log.Print("...DONE")
 		if len(tte.ngramConf.AttrColumns) > 0 {
-
 			if tte.ngramConf.CalcARF {
 				log.Print("####### 2nd run - calculating ARF ###################")
 				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.ngramConf, tte.GetNumTokens(),
@@ -450,6 +455,10 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 			log.Print("Saving defined positional attributes counts into the database...")
 			tte.insertCounts()
 			log.Print("...DONE")
+			close(tte.statusChan)
+
+		} else {
+			close(tte.statusChan)
 		}
 		err = tte.transaction.Commit()
 		if err != nil {
