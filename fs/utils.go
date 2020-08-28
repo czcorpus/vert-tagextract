@@ -16,7 +16,11 @@
 
 package fs
 
-import "os"
+import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+)
 
 // IsDir tests whether a provided path represents
 // a directory. If not or in case of an IO error,
@@ -57,4 +61,18 @@ func GetWorkingDir() string {
 		return ""
 	}
 	return dir
+}
+
+// ListFilesInDir returns absolute paths of all the
+// files (and dirs) in a directory specified by 'path'.
+func ListFilesInDir(path string) ([]string, error) {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return []string{}, err
+	}
+	ans := make([]string, len(files))
+	for i, v := range files {
+		ans[i] = filepath.Join(path, v.Name())
+	}
+	return ans, nil
 }

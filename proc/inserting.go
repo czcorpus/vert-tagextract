@@ -36,6 +36,7 @@ import (
 // Status stores some basic information about vertical file processing
 type Status struct {
 	Datetime       time.Time
+	File           string
 	ProcessedAtoms int
 	ProcessedLines int
 	Error          error
@@ -369,7 +370,7 @@ func (tte *TTExtractor) generateAttrList() []string {
 	return attrNames
 }
 
-func (tte *TTExtractor) insertCounts() {
+func (tte *TTExtractor) insertCounts(stopChan chan struct{}) error {
 	colItems := append(db.GenerateColCountNames(tte.ngramConf.AttrColumns), "corpus_id", "count", "arf")
 	ins := db.PrepareInsert(tte.transaction, "colcounts", colItems)
 	i := 0
@@ -391,7 +392,14 @@ func (tte *TTExtractor) insertCounts() {
 			log.Printf("... written %d records", i)
 		}
 		i++
+		select {
+		case <-stopChan:
+			tte.transaction.Rollback()
+			return fmt.Errorf("Insert interrupted. Transaction rolled back")
+		default:
+		}
 	}
+	return nil
 }
 
 // Run starts the parsing and metadata extraction
@@ -400,7 +408,7 @@ func (tte *TTExtractor) insertCounts() {
 // The whole process runs within a transaction which
 // makes sqlite3 inserts a few orders of magnitude
 // faster.
-func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
+func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 	log.Print("INFO: using zero-based indexing when reporting line errors")
 	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
 	var dbConf []string
@@ -422,7 +430,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	var err error
 	tte.transaction, err = tte.database.Begin()
 	if err != nil {
-		log.Fatalf("Failed to start a database transaction: %s", err)
+		return fmt.Errorf("Failed to start a database transaction: %s", err)
 	}
 
 	tte.attrNames = tte.generateAttrList()
@@ -430,39 +438,43 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) {
 	parserErr := vertigo.ParseVerticalFile(conf, tte)
 	if parserErr != nil {
 		tte.transaction.Rollback()
-		log.Fatalf("Failed to parse vertical file: %s", parserErr)
 		tte.statusChan <- Status{
 			Datetime:       time.Now(),
 			Error:          parserErr,
 			ProcessedAtoms: tte.atomCounter,
 			ProcessedLines: -1,
 		}
-
-	} else {
-		log.Print("...DONE")
-		if len(tte.ngramConf.AttrColumns) > 0 {
-			if tte.ngramConf.CalcARF {
-				log.Print("####### 2nd run - calculating ARF ###################")
-				arfCalc := ptcount.NewARFCalculator(tte.GetColCounts(), tte.ngramConf, tte.GetNumTokens(),
-					tte.columnModders, tte.WordDict(), tte.atomStruct, tte.StopChannel())
-				parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
-				if parserErr != nil {
-					log.Fatal("ERROR: ", parserErr)
-
-				}
-				arfCalc.Finalize()
+		return fmt.Errorf("Failed to parse vertical file: %s", parserErr)
+	}
+	log.Print("...DONE")
+	if len(tte.ngramConf.AttrColumns) > 0 {
+		if tte.ngramConf.CalcARF {
+			log.Print("####### 2nd run - calculating ARF ###################")
+			arfCalc := ptcount.NewARFCalculator(
+				tte.GetColCounts(),
+				tte.ngramConf,
+				tte.GetNumTokens(),
+				tte.columnModders,
+				tte.WordDict(),
+				tte.atomStruct,
+				tte.StopChannel(),
+			)
+			parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
+			if parserErr != nil {
+				return fmt.Errorf("ERROR: %s", parserErr)
 			}
-			log.Print("Saving defined positional attributes counts into the database...")
-			tte.insertCounts()
-			log.Print("...DONE")
-			close(tte.statusChan)
-
-		} else {
-			close(tte.statusChan)
+			arfCalc.Finalize()
+		}
+		log.Print("Saving defined positional attributes counts into the database...")
+		err = tte.insertCounts(tte.StopChannel())
+		if err != nil {
+			return err
 		}
 		err = tte.transaction.Commit()
 		if err != nil {
-			log.Fatal("Failed to commit database transaction: ", err)
+			return fmt.Errorf("Failed to commit database transaction: %s", err)
 		}
 	}
+	log.Print("...DONE")
+	return nil
 }

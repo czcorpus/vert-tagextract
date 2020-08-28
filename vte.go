@@ -68,26 +68,30 @@ func exportData(confPath string, appendData bool) {
 	signalChan := make(chan os.Signal)
 	signal.Notify(signalChan, os.Interrupt)
 	signal.Notify(signalChan, syscall.SIGTERM)
-	stopChan := make(chan struct{})
+	parserStopChan := make(chan struct{})
+	blockChan := make(chan struct{})
 
 	go func() {
 		for range signalChan {
 			log.Print("WARNING: vte work interrupted by user command - the result will be incomplete")
-			close(stopChan)
+			parserStopChan <- struct{}{}
+			close(parserStopChan)
 		}
 	}()
 
 	statusChan := make(chan proc.Status, 10)
 	go func() {
-		for range statusChan {
+		for status := range statusChan {
+			if status.Error != nil {
+				log.Print("ERROR: ", status.Error)
+			}
 		}
+		close(blockChan)
 	}()
 
 	t0 := time.Now()
-	err = library.ExtractData(conf, appendData, stopChan, statusChan)
-	if err != nil {
-		log.Fatal("FATAL: Failed to extract data: ", err)
-	}
+	library.ExtractData(conf, appendData, parserStopChan, statusChan)
+	<-blockChan
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
 
