@@ -17,28 +17,42 @@
 package library
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/db"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
+	"github.com/czcorpus/vert-tagextract/fs"
 	"github.com/czcorpus/vert-tagextract/proc"
 
 	"github.com/tomachalek/vertigo/v4"
 )
 
+func sendErrStatusAndClose(statusChan chan proc.Status, file string, err error) {
+	statusChan <- proc.Status{
+		Datetime: time.Now(),
+		File:     file,
+		Error:    err,
+	}
+	close(statusChan)
+}
+
 // ExtractData extracts structural and/or positional attributes from a vertical file
 // based on the specification in the 'conf' argument.
-// The 'stopChan' can be used to watch handle service shutdown.
-// The 'statusChan' is for getting extraction status information
-func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, statusChan chan proc.Status) error {
+// The 'stopChan' can be used to handle calling service shutdown.
+// The 'statusChan' is for getting extraction status information including possible errors
+func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, statusChan chan proc.Status) {
 
 	_, ferr := os.Stat(conf.DBFile)
 	if os.IsNotExist(ferr) && appendData {
-		log.Fatalf("Update flag is set but the database %s does not exist", conf.DBFile)
+		err := fmt.Errorf("Update flag is set but the database %s does not exist", conf.DBFile)
+		sendErrStatusAndClose(statusChan, conf.DBFile, err)
+		return
 	}
 
 	if !appendData {
@@ -58,26 +72,53 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, sta
 		}
 	}
 
-	parserConf := &vertigo.ParserConf{
-		InputFilePath:         conf.VerticalFile,
-		StructAttrAccumulator: "nil",
-		Encoding:              conf.Encoding,
-	}
+	var filesToProc []string
+	if fs.IsFile(conf.VerticalFile) {
+		filesToProc = []string{conf.VerticalFile}
 
-	var fn colgen.AlignedColGenFn
-	if conf.UsesSelfJoin() {
-		fn = func(args map[string]interface{}) string {
-			return colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)(args, conf.SelfJoin.ArgColumns)
+	} else if fs.IsDir(conf.VerticalFile) {
+		var err error
+		filesToProc, err = fs.ListFilesInDir(conf.VerticalFile)
+		if err != nil {
+			sendErrStatusAndClose(statusChan, conf.VerticalFile, err)
+			return
 		}
 	}
 
-	signalChan := make(chan os.Signal)
-	signal.Notify(signalChan, os.Interrupt)
-	signal.Notify(signalChan, syscall.SIGTERM)
-	tte, err := proc.NewTTExtractor(dbConn, conf, fn, stopChan, statusChan)
-	if err != nil {
-		return err
+	for _, verticalFile := range filesToProc {
+		parserConf := &vertigo.ParserConf{
+			InputFilePath:         verticalFile,
+			StructAttrAccumulator: "nil",
+			Encoding:              conf.Encoding,
+		}
+
+		var fn colgen.AlignedColGenFn
+		if conf.UsesSelfJoin() {
+			fn = func(args map[string]interface{}) string {
+				return colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)(args, conf.SelfJoin.ArgColumns)
+			}
+		}
+
+		subStatusChan := make(chan proc.Status, 10)
+		go func() {
+			for upd := range subStatusChan {
+				upd.File = verticalFile
+				statusChan <- upd
+			}
+		}()
+		signalChan := make(chan os.Signal)
+		signal.Notify(signalChan, os.Interrupt)
+		signal.Notify(signalChan, syscall.SIGTERM)
+		tte, err := proc.NewTTExtractor(dbConn, conf, fn, stopChan, subStatusChan)
+		if err != nil {
+			sendErrStatusAndClose(statusChan, "", err)
+			return
+		}
+		err = tte.Run(parserConf)
+		if err != nil {
+			sendErrStatusAndClose(statusChan, verticalFile, err)
+			return
+		}
 	}
-	tte.Run(parserConf)
-	return nil
+	close(statusChan)
 }

@@ -71,7 +71,12 @@ type VTEConf struct {
 	// If omitted then the function is disabled.
 	Ngrams NgramConf `json:"ngrams"`
 
-	VerticalFile   string       `json:"verticalFile"`
+	// VerticalFile can be either a path to a single file
+	// or a path to a directory containing multiple vertical
+	// files (then we assume all the vertical files are of the
+	// same structure)
+	VerticalFile string `json:"verticalFile"`
+
 	DBFile         string       `json:"dbFile"`
 	DBConfSettings []string     `json:"dbConfSettings"`
 	Encoding       string       `json:"encoding"`
