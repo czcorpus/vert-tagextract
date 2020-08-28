@@ -61,7 +61,10 @@ func dumpNewConf() {
 }
 
 func exportData(confPath string, appendData bool) {
-	conf := cnf.LoadConf(confPath)
+	conf, err := cnf.LoadConf(confPath)
+	if err != nil {
+		log.Fatal("FATAL: ", err)
+	}
 	signalChan := make(chan os.Signal)
 	signal.Notify(signalChan, os.Interrupt)
 	signal.Notify(signalChan, syscall.SIGTERM)
@@ -81,7 +84,7 @@ func exportData(confPath string, appendData bool) {
 	}()
 
 	t0 := time.Now()
-	err := library.ExtractData(conf, appendData, stopChan, statusChan)
+	err = library.ExtractData(conf, appendData, stopChan, statusChan)
 	if err != nil {
 		log.Fatal("FATAL: Failed to extract data: ", err)
 	}
