@@ -19,7 +19,6 @@ package cnf
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 )
 
 // SelfJoinConf contains information about aligned
@@ -135,15 +134,15 @@ func (c *VTEConf) GetDbConfSettings() []string {
 	return c.DBConfSettings
 }
 
-func LoadConf(confPath string) *VTEConf {
+func LoadConf(confPath string) (*VTEConf, error) {
 	rawData, err := ioutil.ReadFile(confPath)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	var conf VTEConf
 	err2 := json.Unmarshal(rawData, &conf)
 	if err2 != nil {
-		log.Fatal(err2)
+		return nil, err2
 	}
-	return &conf
+	return &conf, nil
 }
