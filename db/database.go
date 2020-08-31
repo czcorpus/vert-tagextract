@@ -33,26 +33,26 @@ import (
 
 // OpenDatabase opens a sqlite3 database specified by
 // its filesystem path. In case of an error it panics.
-func OpenDatabase(dbPath string) *sql.DB {
+func OpenDatabase(dbPath string) (*sql.DB, error) {
 	var err error
 	if db, err := sql.Open("sqlite3", dbPath); err == nil {
-		return db
+		return db, nil
 	}
-	panic(err)
+	return nil, fmt.Errorf("Failed to open text types db: %s", err)
 }
 
 // PrepareInsert creates a prepared statement for an INSERT
 // operation.
-func PrepareInsert(database *sql.Tx, table string, cols []string) *sql.Stmt {
+func PrepareInsert(database *sql.Tx, table string, cols []string) (*sql.Stmt, error) {
 	valReplac := make([]string, len(cols))
 	for i := range cols {
 		valReplac[i] = "?"
 	}
 	ans, err := database.Prepare(fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, joinArgs(cols), joinArgs(valReplac)))
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("Failed to prepare INSERT: %s", err)
 	}
-	return ans
+	return ans, nil
 }
 
 // generateColNames produces a list of structural
@@ -113,12 +113,13 @@ func generateViewColDefs(cols []string, idAttr string) []string {
 
 // CreateBibView creates a database view needed
 // by liveattrs to fetch bibliography information.
-func CreateBibView(database *sql.DB, cols []string, idAttr string) {
+func CreateBibView(database *sql.DB, cols []string, idAttr string) error {
 	colDefs := generateViewColDefs(cols, idAttr)
 	_, err := database.Exec(fmt.Sprintf("CREATE VIEW bibliography AS SELECT %s FROM item", joinArgs(colDefs)))
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
 func createAuxIndices(database *sql.DB, cols []string) error {
@@ -136,26 +137,27 @@ func createAuxIndices(database *sql.DB, cols []string) error {
 // DropExisting drops existing tables/views.
 // It is safe to call this even if one or more
 // of these does not exist.
-func DropExisting(database *sql.DB) {
+func DropExisting(database *sql.DB) error {
 	log.Print("Attempting to drop possible existing tables and views...")
 	var err error
 	_, err = database.Exec("DROP TABLE IF EXISTS cache")
 	if err != nil {
-		log.Fatalf("Failed to drop table 'cache': %s", err)
+		return fmt.Errorf("Failed to drop table 'cache': %s", err)
 	}
 	_, err = database.Exec("DROP VIEW IF EXISTS bibliography")
 	if err != nil {
-		log.Fatalf("Failed to drop view 'bibliography': %s", err)
+		return fmt.Errorf("Failed to drop view 'bibliography': %s", err)
 	}
 	_, err = database.Exec("DROP TABLE IF EXISTS item")
 	if err != nil {
-		log.Fatalf("Failed to drop table 'item': %s", err)
+		return fmt.Errorf("Failed to drop table 'item': %s", err)
 	}
 	_, err = database.Exec("DROP TABLE IF EXISTS colcounts")
 	if err != nil {
-		log.Fatalf("Failed to drop table 'colcounts': %s", err)
+		return fmt.Errorf("Failed to drop table 'colcounts': %s", err)
 	}
 	log.Print("...DONE")
+	return nil
 }
 
 // GenerateColCountNames creates a list of general column names
@@ -171,13 +173,13 @@ func GenerateColCountNames(colCount []int) []string {
 
 // CreateSchema creates all the required tables, views and indices
 func CreateSchema(database *sql.DB, structures map[string][]string, indexedCols []string, useSelfJoin bool,
-	countColumns []int) {
+	countColumns []int) error {
 	log.Print("Attempting to create tables and views...")
 
 	var dbErr error
 	_, dbErr = database.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT)")
 	if dbErr != nil {
-		log.Fatalf("Failed to create table 'cache': %s", dbErr)
+		return fmt.Errorf("Failed to create table 'cache': %s", dbErr)
 	}
 
 	cols := generateColNames(structures)
@@ -189,18 +191,18 @@ func CreateSchema(database *sql.DB, structures map[string][]string, indexedCols 
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, %s)", joinArgs(allCollsDefs)))
 	if dbErr != nil {
-		log.Fatalf("Failed to create table 'item': %s", dbErr)
+		return fmt.Errorf("Failed to create table 'item': %s", dbErr)
 	}
 
 	if useSelfJoin {
 		_, dbErr = database.Exec("CREATE UNIQUE INDEX item_id_corpus_id_idx ON item(item_id, corpus_id)")
 		if dbErr != nil {
-			log.Fatalf("Failed to create index item_id_idx on item(item_id): %s", dbErr)
+			return fmt.Errorf("Failed to create index item_id_idx on item(item_id): %s", dbErr)
 		}
 	}
 	dbErr = createAuxIndices(database, indexedCols)
 	if dbErr != nil {
-		log.Fatalf("Failed to create a custom index: %s", dbErr)
+		return fmt.Errorf("Failed to create a custom index: %s", dbErr)
 	}
 
 	if len(countColumns) > 0 {
@@ -212,13 +214,13 @@ func CreateSchema(database *sql.DB, structures map[string][]string, indexedCols 
 		_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE colcounts (%s, corpus_id TEXT, count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
 			strings.Join(colDefs, ", "), strings.Join(columns, ", ")))
 		if dbErr != nil {
-			log.Fatal("Failed to create table 'colcounts': ", dbErr)
+			return fmt.Errorf("Failed to create table 'colcounts': %s", dbErr)
 		}
 		_, dbErr = database.Exec("CREATE INDEX colcounts_corpus_id_idx ON colcounts(corpus_id)")
 		if dbErr != nil {
-			log.Fatalf("Failed to create index colcounts_corpus_id_idx on colcounts(corpus_id): %s", dbErr)
+			return fmt.Errorf("Failed to create index colcounts_corpus_id_idx on colcounts(corpus_id): %s", dbErr)
 		}
 	}
-
 	log.Print("...DONE")
+	return nil
 }
