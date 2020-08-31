@@ -59,16 +59,32 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, sta
 		log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
 	}
 
-	dbConn := db.OpenDatabase(conf.DBFile)
+	dbConn, err := db.OpenDatabase(conf.DBFile)
+	if err != nil {
+		sendErrStatusAndClose(statusChan, conf.DBFile, err)
+		return
+	}
 	defer dbConn.Close()
 
 	if !appendData {
 		if !os.IsNotExist(ferr) {
-			db.DropExisting(dbConn)
+			err := db.DropExisting(dbConn)
+			if err != nil {
+				sendErrStatusAndClose(statusChan, conf.DBFile, err)
+				return
+			}
 		}
-		db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.Ngrams.AttrColumns)
+		err := db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.Ngrams.AttrColumns)
+		if err != nil {
+			sendErrStatusAndClose(statusChan, conf.DBFile, err)
+			return
+		}
 		if conf.HasConfiguredBib() {
-			db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
+			err := db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
+			if err != nil {
+				sendErrStatusAndClose(statusChan, conf.DBFile, err)
+				return
+			}
 		}
 	}
 
@@ -94,8 +110,12 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, sta
 
 		var fn colgen.AlignedColGenFn
 		if conf.UsesSelfJoin() {
-			fn = func(args map[string]interface{}) string {
-				return colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)(args, conf.SelfJoin.ArgColumns)
+			fn = func(args map[string]interface{}) (string, error) {
+				ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
+				if err != nil {
+
+				}
+				return ans(args, conf.SelfJoin.ArgColumns)
 			}
 		}
 

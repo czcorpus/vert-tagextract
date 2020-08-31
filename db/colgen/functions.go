@@ -17,55 +17,58 @@
 package colgen
 
 import (
-	"log"
+	"fmt"
 	"strings"
 )
 
 var (
-	FuncList = map[string]func(map[string]interface{}, []string) string{
+	FuncList = map[string]func(map[string]interface{}, []string) (string, error){
 		"intercorp": intercorp,
 		"identity":  identity,
 		"empty":     empty,
 	}
 )
 
-type AlignedColGenFn func(map[string]interface{}) string
+type AlignedColGenFn func(map[string]interface{}) (string, error)
 
-type AlignedUnboundColGenFn func(map[string]interface{}, []string) string
+type AlignedUnboundColGenFn func(map[string]interface{}, []string) (string, error)
 
-func fetchStringVals(attrs map[string]interface{}, useAttrs []string) []string {
+func fetchStringVals(attrs map[string]interface{}, useAttrs []string) ([]string, error) {
 	ans := make([]string, len(useAttrs))
 	for i, attr := range useAttrs {
 		switch attrs[attr].(type) {
 		case string:
 			ans[i] = attrs[attr].(string)
 		default:
-			log.Fatalf("Column generator function cannot accept non-string values: %v (key: %s, type %T)", attrs[attr], attr, attrs[attr])
+			return []string{}, fmt.Errorf("Column generator function cannot accept non-string values: %v (key: %s, type %T)", attrs[attr], attr, attrs[attr])
 		}
 	}
-	return ans
+	return ans, nil
 }
 
-func intercorp(attrs map[string]interface{}, useAttrs []string) string {
-	vals := fetchStringVals(attrs, useAttrs)
-	return vals[0][2:]
+func intercorp(attrs map[string]interface{}, useAttrs []string) (string, error) {
+	vals, err := fetchStringVals(attrs, useAttrs)
+	return vals[0][2:], err
 }
 
-func empty(attrs map[string]interface{}, useAttrs []string) string {
-	return ""
+func empty(attrs map[string]interface{}, useAttrs []string) (string, error) {
+	return "", nil
 }
 
-func identity(attrs map[string]interface{}, useAttrs []string) string {
-	return strings.Join(fetchStringVals(attrs, useAttrs), "_")
+func identity(attrs map[string]interface{}, useAttrs []string) (string, error) {
+	vals, err := fetchStringVals(attrs, useAttrs)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(vals, "_"), nil
 }
 
-func GetFuncByName(fnName string) AlignedUnboundColGenFn {
+func GetFuncByName(fnName string) (AlignedUnboundColGenFn, error) {
 	fn, ok := FuncList[fnName]
 	if ok {
-		return fn
+		return fn, nil
 	}
-	log.Fatalf("Unknown aligned column generator function: %s", fnName)
-	return nil
+	return nil, fmt.Errorf("Unknown aligned column generator function: %s", fnName)
 }
 
 func GetFuncList() []string {

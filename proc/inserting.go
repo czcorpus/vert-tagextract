@@ -258,7 +258,13 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 			attrs["poscount"] = 0  // This value is updated once we hit the closing tag
 			attrs["corpus_id"] = tte.corpusID
 			if tte.colgenFn != nil {
-				attrs["item_id"] = tte.colgenFn(attrs)
+				var err4 error
+				attrs["item_id"], err4 = tte.colgenFn(attrs)
+				if err4 != nil {
+					tte.reportErrorOnLine(line, err4)
+					tte.incNumErrorsAndTest()
+					return
+				}
 			}
 			tte.currAtomAttrs = attrs
 			tte.atomCounter++
@@ -269,7 +275,13 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 			attrs["poscount"] = 0  // This value is updated once we hit the closing tag
 			attrs["corpus_id"] = tte.corpusID
 			if tte.colgenFn != nil {
-				attrs["item_id"] = tte.colgenFn(attrs)
+				var err5 error
+				attrs["item_id"], err5 = tte.colgenFn(attrs)
+				if err5 != nil {
+					tte.reportErrorOnLine(line, err5)
+					tte.incNumErrorsAndTest()
+					return
+				}
 			}
 			tte.currAtomAttrs = attrs
 		}
@@ -372,7 +384,10 @@ func (tte *TTExtractor) generateAttrList() []string {
 
 func (tte *TTExtractor) insertCounts(stopChan chan struct{}) error {
 	colItems := append(db.GenerateColCountNames(tte.ngramConf.AttrColumns), "corpus_id", "count", "arf")
-	ins := db.PrepareInsert(tte.transaction, "colcounts", colItems)
+	ins, err := db.PrepareInsert(tte.transaction, "colcounts", colItems)
+	if err != nil {
+		return nil
+	}
 	i := 0
 	for _, count := range tte.colCounts {
 		args := make([]interface{}, count.Width()+3)
@@ -434,7 +449,10 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 	}
 
 	tte.attrNames = tte.generateAttrList()
-	tte.docInsert = db.PrepareInsert(tte.transaction, "item", tte.attrNames)
+	tte.docInsert, err = db.PrepareInsert(tte.transaction, "item", tte.attrNames)
+	if err != nil {
+		return err
+	}
 	parserErr := vertigo.ParseVerticalFile(conf, tte)
 	if parserErr != nil {
 		tte.transaction.Rollback()
