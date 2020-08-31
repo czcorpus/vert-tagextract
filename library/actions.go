@@ -48,15 +48,10 @@ func sendErrStatusAndClose(statusChan chan proc.Status, file string, err error) 
 // The 'statusChan' is for getting extraction status information including possible errors
 func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, statusChan chan proc.Status) {
 
-	_, ferr := os.Stat(conf.DBFile)
-	if os.IsNotExist(ferr) && appendData {
+	if !fs.IsFile(conf.DBFile) && appendData {
 		err := fmt.Errorf("Update flag is set but the database %s does not exist", conf.DBFile)
 		sendErrStatusAndClose(statusChan, conf.DBFile, err)
 		return
-	}
-
-	if !appendData {
-		log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
 	}
 
 	dbConn, err := db.OpenDatabase(conf.DBFile)
@@ -67,7 +62,8 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, sta
 	defer dbConn.Close()
 
 	if !appendData {
-		if !os.IsNotExist(ferr) {
+		if fs.IsFile(conf.DBFile) {
+			log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
 			err := db.DropExisting(dbConn)
 			if err != nil {
 				sendErrStatusAndClose(statusChan, conf.DBFile, err)
