@@ -20,8 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/czcorpus/vert-tagextract/cnf"
@@ -33,53 +32,47 @@ import (
 	"github.com/tomachalek/vertigo/v5"
 )
 
-func sendErrStatusAndClose(statusChan chan proc.Status, file string, err error) {
+func sendErrStatus(statusChan chan proc.Status, file string, err error) {
 	statusChan <- proc.Status{
 		Datetime: time.Now(),
 		File:     file,
 		Error:    err,
 	}
-	close(statusChan)
 }
 
 // ExtractData extracts structural and/or positional attributes from a vertical file
 // based on the specification in the 'conf' argument.
 // The 'stopChan' can be used to handle calling service shutdown.
 // The 'statusChan' is for getting extraction status information including possible errors
-func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, statusChan chan proc.Status) {
+func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
+	statusChan := make(chan proc.Status)
 
 	if !fs.IsFile(conf.DBFile) && appendData {
 		err := fmt.Errorf("Update flag is set but the database %s does not exist", conf.DBFile)
-		sendErrStatusAndClose(statusChan, conf.DBFile, err)
-		return
+		return nil, err
 	}
 
 	dbConn, err := db.OpenDatabase(conf.DBFile)
 	if err != nil {
-		sendErrStatusAndClose(statusChan, conf.DBFile, err)
-		return
+		return nil, err
 	}
-	defer dbConn.Close()
 
 	if !appendData {
 		if fs.IsFile(conf.DBFile) {
 			log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
 			err := db.DropExisting(dbConn)
 			if err != nil {
-				sendErrStatusAndClose(statusChan, conf.DBFile, err)
-				return
+				return nil, err
 			}
 		}
 		err := db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.Ngrams.AttrColumns)
 		if err != nil {
-			sendErrStatusAndClose(statusChan, conf.DBFile, err)
-			return
+			return nil, err
 		}
 		if conf.HasConfiguredBib() {
 			err := db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
 			if err != nil {
-				sendErrStatusAndClose(statusChan, conf.DBFile, err)
-				return
+				return nil, err
 			}
 		}
 	}
@@ -92,49 +85,54 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, sta
 		var err error
 		filesToProc, err = fs.ListFilesInDir(conf.VerticalFile)
 		if err != nil {
-			sendErrStatusAndClose(statusChan, conf.VerticalFile, err)
-			return
+			return nil, err
 		}
 	}
 
-	for _, verticalFile := range filesToProc {
-		parserConf := &vertigo.ParserConf{
-			InputFilePath:         verticalFile,
-			StructAttrAccumulator: "nil",
-			Encoding:              conf.Encoding,
-		}
+	go func() {
+		defer dbConn.Close()
+		defer close(statusChan)
+		var wg sync.WaitGroup
+		wg.Add(len(filesToProc))
+		for _, verticalFile := range filesToProc {
+			parserConf := &vertigo.ParserConf{
+				InputFilePath:         verticalFile,
+				StructAttrAccumulator: "nil",
+				Encoding:              conf.Encoding,
+			}
 
-		var fn colgen.AlignedColGenFn
-		if conf.UsesSelfJoin() {
-			fn = func(args map[string]interface{}) (string, error) {
-				ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
-				if err != nil {
+			var fn colgen.AlignedColGenFn
+			if conf.UsesSelfJoin() {
+				fn = func(args map[string]interface{}) (string, error) {
+					ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
+					if err != nil {
 
+					}
+					return ans(args, conf.SelfJoin.ArgColumns)
 				}
-				return ans(args, conf.SelfJoin.ArgColumns)
 			}
-		}
 
-		subStatusChan := make(chan proc.Status, 10)
-		go func() {
-			for upd := range subStatusChan {
-				upd.File = verticalFile
-				statusChan <- upd
+			subStatusChan := make(chan proc.Status, 10)
+			go func() {
+				defer wg.Done()
+				for upd := range subStatusChan {
+					upd.File = verticalFile
+					statusChan <- upd
+				}
+			}()
+			tte, err := proc.NewTTExtractor(dbConn, conf, fn, subStatusChan, stopChan)
+			if err != nil {
+				close(subStatusChan)
+				sendErrStatus(statusChan, "", err)
 			}
-		}()
-		signalChan := make(chan os.Signal)
-		signal.Notify(signalChan, os.Interrupt)
-		signal.Notify(signalChan, syscall.SIGTERM)
-		tte, err := proc.NewTTExtractor(dbConn, conf, fn, subStatusChan)
-		if err != nil {
-			sendErrStatusAndClose(statusChan, "", err)
-			return
+			err = tte.Run(parserConf)
+			close(subStatusChan)
+			if err != nil {
+				sendErrStatus(statusChan, verticalFile, err)
+			}
 		}
-		err = tte.Run(parserConf)
-		if err != nil {
-			sendErrStatusAndClose(statusChan, verticalFile, err)
-			return
-		}
-	}
-	close(statusChan)
+		wg.Wait()
+	}()
+
+	return statusChan, nil
 }

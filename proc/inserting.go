@@ -86,14 +86,14 @@ type TTExtractor struct {
 	columnModders      []*modders.ModderChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
-	signalChan         chan os.Signal
-	statusChan         chan Status
+	stopChan           <-chan os.Signal
+	statusChan         chan<- Status
 }
 
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
 func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
-	colgenFn colgen.AlignedColGenFn, statusChan chan Status) (*TTExtractor, error) {
+	colgenFn colgen.AlignedColGenFn, statusChan chan Status, stopChan <-chan os.Signal) (*TTExtractor, error) {
 	filter, err := LoadCustomFilter(conf.GetFilterLib(), conf.GetFilterFn())
 	if err != nil {
 		return nil, err
@@ -115,6 +115,7 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		currSentence:     make([][]int, 0, 20),
 		valueDict:        ptcount.NewWordDict(),
 		statusChan:       statusChan,
+		stopChan:         stopChan,
 	}
 
 	for i, m := range conf.GetNgrams().ColumnMods {
@@ -172,6 +173,11 @@ func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 // ProcToken is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a token line is encountered.
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error {
+	select {
+	case s := <-tte.stopChan:
+		return fmt.Errorf("Received stop signal: %s", s)
+	default:
+	}
 	if err != nil {
 		return tte.handleProcError(line, err)
 	}
@@ -227,6 +233,11 @@ func (tte *TTExtractor) getCurrentAccumAttrs() map[string]interface{} {
 // It si called by Vertigo parser when an opening structure tag
 // is encountered.
 func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) error {
+	select {
+	case s := <-tte.stopChan:
+		return fmt.Errorf("Received stop signal: %s", s)
+	default:
+	}
 	if err != nil { // error from the Vertigo parser
 		return tte.handleProcError(line, err)
 	}
@@ -289,6 +300,11 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 // It is called by Vertigo parser when a closing structure tag is
 // encountered.
 func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, err error) error {
+	select {
+	case s := <-tte.stopChan:
+		return fmt.Errorf("Received stop signal: %s", s)
+	default:
+	}
 	if err != nil { // error from the Vertigo parser
 		return tte.handleProcError(line, err)
 	}
@@ -379,6 +395,11 @@ func (tte *TTExtractor) insertCounts() error {
 	}
 	i := 0
 	for _, count := range tte.colCounts {
+		select {
+		case s := <-tte.stopChan:
+			return fmt.Errorf("Received stop signal: %s", s)
+		default:
+		}
 		args := make([]interface{}, count.Width()+3)
 		count.ForEachAttr(tte.valueDict, func(v string, i int) {
 			args[i] = v
