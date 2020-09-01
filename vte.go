@@ -30,7 +30,6 @@ import (
 	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/db/colgen"
 	"github.com/czcorpus/vert-tagextract/library"
-	"github.com/czcorpus/vert-tagextract/proc"
 
 	"github.com/tomachalek/vertigo/v5"
 )
@@ -65,33 +64,20 @@ func exportData(confPath string, appendData bool) {
 	if err != nil {
 		log.Fatal("FATAL: ", err)
 	}
-	signalChan := make(chan os.Signal)
+	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 	signal.Notify(signalChan, syscall.SIGTERM)
-	parserStopChan := make(chan struct{})
-	blockChan := make(chan struct{})
-
-	go func() {
-		for range signalChan {
-			log.Print("WARNING: vte work interrupted by user command - the result will be incomplete")
-			parserStopChan <- struct{}{}
-			close(parserStopChan)
-		}
-	}()
-
-	statusChan := make(chan proc.Status, 10)
-	go func() {
-		for status := range statusChan {
-			if status.Error != nil {
-				log.Print("ERROR: ", status.Error)
-			}
-		}
-		close(blockChan)
-	}()
 
 	t0 := time.Now()
-	library.ExtractData(conf, appendData, parserStopChan, statusChan)
-	<-blockChan
+	statusChan, err := library.ExtractData(conf, appendData, signalChan)
+	if err != nil {
+		log.Fatal("FATAL: ", err)
+	}
+	for status := range statusChan {
+		if status.Error != nil {
+			log.Print("ERROR: ", status.Error)
+		}
+	}
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
 
