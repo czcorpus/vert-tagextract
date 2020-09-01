@@ -63,6 +63,7 @@ type TTEConfProvider interface {
 // received pasivelly by implementing vertigo.LineProcessor
 type TTExtractor struct {
 	atomCounter        int
+	lineCounter        int
 	errorCounter       int
 	maxNumErrors       int
 	tokenInAtomCounter int
@@ -181,6 +182,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 	if err != nil {
 		return tte.handleProcError(line, err)
 	}
+	tte.lineCounter = line
 	if tte.filter.Apply(tk, tte.attrAccum) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
@@ -241,7 +243,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 	if err != nil { // error from the Vertigo parser
 		return tte.handleProcError(line, err)
 	}
-
+	tte.lineCounter = line
 	err2 := tte.attrAccum.begin(line, st)
 	if err2 != nil {
 		return tte.handleProcError(line, err2)
@@ -312,7 +314,7 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 	if err2 != nil {
 		return tte.handleProcError(line, err2)
 	}
-
+	tte.lineCounter = line
 	if accumItem.elm.Name == tte.atomStruct ||
 		accumItem.elm.Name == tte.atomParentStruct && tte.lastAtomOpenLine < accumItem.lineOpen {
 
@@ -413,8 +415,16 @@ func (tte *TTExtractor) insertCounts() error {
 			args[count.Width()+2] = -1
 		}
 		ins.Exec(args...)
-		if i > 0 && i%100000 == 0 {
-			log.Printf("... written %d records", i)
+
+		if i > 0 && i%1000 == 0 {
+			tte.statusChan <- Status{
+				Datetime:       time.Now(),
+				ProcessedAtoms: tte.atomCounter,
+				ProcessedLines: tte.lineCounter,
+			}
+			if i%100000 == 0 {
+				log.Printf("... written %d records", i)
+			}
 		}
 		i++
 	}
