@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tomachalek/vertigo/v4"
+	"github.com/tomachalek/vertigo/v5"
 )
 
 func createDocStructure(category string, year string) *vertigo.Structure {

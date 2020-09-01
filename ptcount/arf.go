@@ -23,7 +23,7 @@ import (
 
 	"github.com/czcorpus/vert-tagextract/cnf"
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
-	"github.com/tomachalek/vertigo/v4"
+	"github.com/tomachalek/vertigo/v5"
 )
 
 // Calculate ARF for processed n-grams. Please note that the way
@@ -76,12 +76,11 @@ type ARFCalculator struct {
 	columnModders []*modders.ModderChain
 	wordDict      *WordDict
 	atomStruct    string
-	stopChan      chan struct{}
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
 func NewARFCalculator(counts map[string]*NgramCounter, ngramConf *cnf.NgramConf, numTokens int,
-	columnModders []*modders.ModderChain, wordDict *WordDict, atomStruct string, stopChan chan struct{}) *ARFCalculator {
+	columnModders []*modders.ModderChain, wordDict *WordDict, atomStruct string) *ARFCalculator {
 	return &ARFCalculator{
 		numTokens:     numTokens,
 		counts:        counts,
@@ -89,17 +88,12 @@ func NewARFCalculator(counts map[string]*NgramCounter, ngramConf *cnf.NgramConf,
 		ngramConf:     ngramConf,
 		columnModders: columnModders,
 		atomStruct:    atomStruct,
-		stopChan:      stopChan,
 		wordDict:      wordDict,
 	}
 }
 
-func (arfc *ARFCalculator) StopChannel() chan struct{} {
-	return arfc.stopChan
-}
-
 // ProcToken is called by vertigo parser when a token is encountered
-func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
+func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) error {
 	attributes := make([]int, len(arfc.ngramConf.AttrColumns))
 	for i, idx := range arfc.ngramConf.AttrColumns {
 		v := tk.PosAttrByIndex(idx)
@@ -116,8 +110,8 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
 		key := ngram.UniqueID(arfc.ngramConf.UniqKeyColumns)
 		cnt, ok := arfc.counts[key]
 		if !ok {
-			log.Print("ERROR: token not found")
-			return
+			log.Printf("WARNING: token %s not found", key)
+			return nil
 		}
 		if !cnt.HasARF() {
 			cnt.AddARF(tk)
@@ -127,16 +121,20 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) {
 		}
 		cnt.ARF().PrevTokIdx = tk.Idx
 	}
+	return nil
 }
 
 // ProcStruct is used by Vertigo parser but we don't need it here
-func (arfc *ARFCalculator) ProcStruct(strc *vertigo.Structure, line int, err error) {}
+func (arfc *ARFCalculator) ProcStruct(strc *vertigo.Structure, line int, err error) error {
+	return err
+}
 
 // ProcStructClose is used by Vertigo parser but we don't need it here
-func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, line int, err error) {
+func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, line int, err error) error {
 	if strc.Name == arfc.atomStruct {
 		arfc.currSentence = arfc.currSentence[:0]
 	}
+	return err
 }
 
 // Finalize performs some final calculations on obtained

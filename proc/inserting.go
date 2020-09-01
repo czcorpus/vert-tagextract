@@ -30,7 +30,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/ptcount"
 	"github.com/czcorpus/vert-tagextract/ptcount/modders"
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
-	"github.com/tomachalek/vertigo/v4"
+	"github.com/tomachalek/vertigo/v5"
 )
 
 // Status stores some basic information about vertical file processing
@@ -86,7 +86,6 @@ type TTExtractor struct {
 	columnModders      []*modders.ModderChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
-	stopChan           chan struct{}
 	signalChan         chan os.Signal
 	statusChan         chan Status
 }
@@ -94,7 +93,7 @@ type TTExtractor struct {
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
 func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
-	colgenFn colgen.AlignedColGenFn, stopChan chan struct{}, statusChan chan Status) (*TTExtractor, error) {
+	colgenFn colgen.AlignedColGenFn, statusChan chan Status) (*TTExtractor, error) {
 	filter, err := LoadCustomFilter(conf.GetFilterLib(), conf.GetFilterFn())
 	if err != nil {
 		return nil, err
@@ -113,7 +112,6 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 		columnModders:    make([]*modders.ModderChain, len(conf.GetNgrams().AttrColumns)),
 		filter:           filter,
 		maxNumErrors:     conf.GetMaxNumErrors(),
-		stopChan:         stopChan,
 		currSentence:     make([][]int, 0, 20),
 		valueDict:        ptcount.NewWordDict(),
 		statusChan:       statusChan,
@@ -139,10 +137,6 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 	return ans, nil
 }
 
-func (tte *TTExtractor) StopChannel() chan struct{} {
-	return tte.stopChan
-}
-
 func (tte *TTExtractor) GetNumTokens() int {
 	return tte.tokenCounter
 }
@@ -155,14 +149,12 @@ func (tte *TTExtractor) GetColCounts() map[string]*ptcount.NgramCounter {
 	return tte.colCounts
 }
 
-func (tte *TTExtractor) incNumErrorsAndTest() {
-	tte.errorCounter++
-	if tte.errorCounter > tte.maxNumErrors {
-		log.Fatal("FATAL: too many errors")
-	}
-}
-
-func (tte *TTExtractor) reportErrorOnLine(lineNum int, err error) {
+// handleProcError reports a provided error err by sending it via
+// statusChan and also evaluates total number of errors and in case
+// it is too high (compared with a limit defined in maxNumErrors)
+// it returns a new error which should be considered a processing
+// stop signal.
+func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 	tte.statusChan <- Status{
 		Datetime:       time.Now(),
 		ProcessedAtoms: tte.atomCounter,
@@ -170,14 +162,18 @@ func (tte *TTExtractor) reportErrorOnLine(lineNum int, err error) {
 		Error:          err,
 	}
 	log.Printf("ERROR: Line %d: %s", lineNum, err)
+	tte.errorCounter++
+	if tte.errorCounter > tte.maxNumErrors {
+		return fmt.Errorf("FATAL: too many errors")
+	}
+	return nil
 }
 
 // ProcToken is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a token line is encountered.
-func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
+func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error {
 	if err != nil {
-		tte.reportErrorOnLine(line, err)
-		tte.incNumErrorsAndTest()
+		return tte.handleProcError(line, err)
 	}
 	if tte.filter.Apply(tk, tte.attrAccum) {
 		tte.tokenInAtomCounter++
@@ -213,6 +209,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) {
 			ProcessedLines: line,
 		}
 	}
+	return nil
 }
 
 func (tte *TTExtractor) getCurrentAccumAttrs() map[string]interface{} {
@@ -229,23 +226,19 @@ func (tte *TTExtractor) getCurrentAccumAttrs() map[string]interface{} {
 // ProcStruct is a part of vertigo.LineProcessor implementation.
 // It si called by Vertigo parser when an opening structure tag
 // is encountered.
-func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
+func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) error {
 	if err != nil { // error from the Vertigo parser
-		tte.reportErrorOnLine(line, err)
-		tte.incNumErrorsAndTest()
+		return tte.handleProcError(line, err)
 	}
 
 	err2 := tte.attrAccum.begin(line, st)
 	if err2 != nil {
-		tte.reportErrorOnLine(line, err2)
-		tte.incNumErrorsAndTest()
+		return tte.handleProcError(line, err2)
 	}
 	if st.IsEmpty {
 		_, err3 := tte.attrAccum.end(line, st.Name)
 		if err3 != nil {
-			tte.reportErrorOnLine(line, err3)
-			tte.incNumErrorsAndTest()
-			return
+			return tte.handleProcError(line, err3)
 		}
 	}
 
@@ -261,9 +254,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 				var err4 error
 				attrs["item_id"], err4 = tte.colgenFn(attrs)
 				if err4 != nil {
-					tte.reportErrorOnLine(line, err4)
-					tte.incNumErrorsAndTest()
-					return
+					return tte.handleProcError(line, err4)
 				}
 			}
 			tte.currAtomAttrs = attrs
@@ -278,9 +269,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 				var err5 error
 				attrs["item_id"], err5 = tte.colgenFn(attrs)
 				if err5 != nil {
-					tte.reportErrorOnLine(line, err5)
-					tte.incNumErrorsAndTest()
-					return
+					return tte.handleProcError(line, err5)
 				}
 			}
 			tte.currAtomAttrs = attrs
@@ -293,21 +282,19 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) {
 			ProcessedLines: line,
 		}
 	}
+	return nil
 }
 
 // ProcStructClose is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a closing structure tag is
 // encountered.
-func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, err error) {
+func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, err error) error {
 	if err != nil { // error from the Vertigo parser
-		tte.reportErrorOnLine(line, err)
-		tte.incNumErrorsAndTest()
+		return tte.handleProcError(line, err)
 	}
 	accumItem, err2 := tte.attrAccum.end(line, st.Name)
 	if err2 != nil {
-		tte.reportErrorOnLine(line, err2)
-		tte.incNumErrorsAndTest()
-		return
+		return tte.handleProcError(line, err2)
 	}
 
 	if accumItem.elm.Name == tte.atomStruct ||
@@ -325,7 +312,8 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 		}
 		_, err := tte.docInsert.Exec(values...)
 		if err != nil {
-			log.Fatalf("Failed to insert data: %s", err)
+			return tte.handleProcError(line, err)
+
 		}
 		tte.currAtomAttrs = make(map[string]interface{})
 
@@ -339,6 +327,7 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 			ProcessedLines: line,
 		}
 	}
+	return nil
 }
 
 // acceptAttr tests whether a structural attribute
@@ -382,7 +371,7 @@ func (tte *TTExtractor) generateAttrList() []string {
 	return attrNames
 }
 
-func (tte *TTExtractor) insertCounts(stopChan chan struct{}) error {
+func (tte *TTExtractor) insertCounts() error {
 	colItems := append(db.GenerateColCountNames(tte.ngramConf.AttrColumns), "corpus_id", "count", "arf")
 	ins, err := db.PrepareInsert(tte.transaction, "colcounts", colItems)
 	if err != nil {
@@ -407,12 +396,6 @@ func (tte *TTExtractor) insertCounts(stopChan chan struct{}) error {
 			log.Printf("... written %d records", i)
 		}
 		i++
-		select {
-		case <-stopChan:
-			tte.transaction.Rollback()
-			return fmt.Errorf("Insert interrupted. Transaction rolled back")
-		default:
-		}
 	}
 	return nil
 }
@@ -475,7 +458,6 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 				tte.columnModders,
 				tte.WordDict(),
 				tte.atomStruct,
-				tte.StopChannel(),
 			)
 			parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
 			if parserErr != nil {
@@ -484,7 +466,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 			arfCalc.Finalize()
 		}
 		log.Print("Saving defined positional attributes counts into the database...")
-		err = tte.insertCounts(tte.StopChannel())
+		err = tte.insertCounts()
 		if err != nil {
 			return err
 		}

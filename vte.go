@@ -32,7 +32,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/library"
 	"github.com/czcorpus/vert-tagextract/proc"
 
-	"github.com/tomachalek/vertigo/v4"
+	"github.com/tomachalek/vertigo/v5"
 )
 
 var (
