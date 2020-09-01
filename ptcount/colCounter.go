@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tomachalek/vertigo/v4"
+	"github.com/tomachalek/vertigo/v5"
 )
 
 // Position specifies positional attributes

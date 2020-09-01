@@ -30,7 +30,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/fs"
 	"github.com/czcorpus/vert-tagextract/proc"
 
-	"github.com/tomachalek/vertigo/v4"
+	"github.com/tomachalek/vertigo/v5"
 )
 
 func sendErrStatusAndClose(statusChan chan proc.Status, file string, err error) {
@@ -125,7 +125,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan chan struct{}, sta
 		signalChan := make(chan os.Signal)
 		signal.Notify(signalChan, os.Interrupt)
 		signal.Notify(signalChan, syscall.SIGTERM)
-		tte, err := proc.NewTTExtractor(dbConn, conf, fn, stopChan, subStatusChan)
+		tte, err := proc.NewTTExtractor(dbConn, conf, fn, subStatusChan)
 		if err != nil {
 			sendErrStatusAndClose(statusChan, "", err)
 			return
