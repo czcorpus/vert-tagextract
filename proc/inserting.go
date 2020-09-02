@@ -478,7 +478,6 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 		}
 		return fmt.Errorf("Failed to parse vertical file: %s", parserErr)
 	}
-	log.Print("...DONE")
 	if len(tte.ngramConf.AttrColumns) > 0 {
 		if tte.ngramConf.CalcARF {
 			log.Print("####### 2nd run - calculating ARF ###################")

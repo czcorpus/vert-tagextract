@@ -87,6 +87,9 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		if err != nil {
 			return nil, err
 		}
+
+	} else {
+		return nil, fmt.Errorf("Vertical source %s not recognized", conf.VerticalFile)
 	}
 
 	go func() {
@@ -95,6 +98,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		var wg sync.WaitGroup
 		wg.Add(len(filesToProc))
 		for _, verticalFile := range filesToProc {
+			log.Printf("Processing vertical %s", verticalFile)
 			parserConf := &vertigo.ParserConf{
 				InputFilePath:         verticalFile,
 				StructAttrAccumulator: "nil",
