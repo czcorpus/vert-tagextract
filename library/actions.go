@@ -78,18 +78,25 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	}
 
 	var filesToProc []string
-	if fs.IsFile(conf.VerticalFile) {
+
+	if conf.VerticalFile != "" && len(conf.VerticalFiles) > 0 {
+		return nil, fmt.Errorf("cannot use verticalFile and verticalFiles at the same time")
+	}
+	if conf.VerticalFile != "" && fs.IsFile(conf.VerticalFile) {
 		filesToProc = []string{conf.VerticalFile}
 
-	} else if fs.IsDir(conf.VerticalFile) {
+	} else if conf.VerticalFile != "" && fs.IsDir(conf.VerticalFile) {
 		var err error
 		filesToProc, err = fs.ListFilesInDir(conf.VerticalFile)
 		if err != nil {
 			return nil, err
 		}
 
+	} else if len(conf.VerticalFiles) > 0 && fs.AllFilesExist(conf.VerticalFiles) {
+		filesToProc = conf.VerticalFiles
+
 	} else {
-		return nil, fmt.Errorf("Vertical source %s not recognized", conf.VerticalFile)
+		return nil, fmt.Errorf("Neither verticalFile nor verticalFiles provide a valid data source")
 	}
 
 	go func() {

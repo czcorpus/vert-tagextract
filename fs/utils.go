@@ -52,6 +52,17 @@ func IsFile(path string) bool {
 	return finfo.Mode().IsRegular()
 }
 
+// AllFilesExist returns true if all the provides paths
+// represent existing files.
+func AllFilesExist(paths []string) bool {
+	for _, path := range paths {
+		if !IsFile(path) {
+			return false
+		}
+	}
+	return true
+}
+
 // GetWorkingDir returns a program working
 // directory. In case of an error, an empty
 // string is returned.

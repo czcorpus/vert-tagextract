@@ -77,6 +77,11 @@ type VTEConf struct {
 	// same structure)
 	VerticalFile string `json:"verticalFile"`
 
+	// VerticalFiles is an alternative to VerticalFile allowing
+	// explicit selection of one or more files to be processed
+	// as one.
+	VerticalFiles []string `json:"verticalFiles"`
+
 	DBFile         string       `json:"dbFile"`
 	DBConfSettings []string     `json:"dbConfSettings"`
 	Encoding       string       `json:"encoding"`
