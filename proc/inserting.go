@@ -500,10 +500,10 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 		if err != nil {
 			return err
 		}
-		err = tte.transaction.Commit()
-		if err != nil {
-			return fmt.Errorf("Failed to commit database transaction: %s", err)
-		}
+	}
+	err = tte.transaction.Commit()
+	if err != nil {
+		return fmt.Errorf("Failed to commit database transaction: %s", err)
 	}
 	log.Print("...DONE")
 	return nil
