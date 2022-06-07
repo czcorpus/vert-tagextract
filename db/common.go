@@ -17,8 +17,23 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 )
+
+type Insert struct {
+	Stmt *sql.Stmt
+}
+
+func (ins *Insert) Exec(values ...any) error {
+	for i, v := range values {
+		if _, ok := v.(string); ok && v == "" {
+			values[i] = sql.NullString{String: "", Valid: false}
+		}
+	}
+	_, err := ins.Stmt.Exec(values...)
+	return err
+}
 
 // SelfJoinConf contains information about aligned
 // structural attributes (e.g. sentences from two
@@ -48,6 +63,7 @@ func (c *BibViewConf) IsConfigured() bool {
 type Conf struct {
 	Type           string   `json:"type"`
 	Name           string   `json:"name"`
+	Host           string   `json:"host"`
 	User           string   `json:"user"`
 	Password       string   `json:"password"`
 	PreconfQueries []string `json:"preconfSettings"`

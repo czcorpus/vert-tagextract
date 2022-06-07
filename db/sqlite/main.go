@@ -24,20 +24,6 @@ import (
 	"vert-tagextract/v2/fs"
 )
 
-type Insert struct {
-	stmt *sql.Stmt
-}
-
-func (ins *Insert) Exec(values ...any) error {
-	for i, v := range values {
-		if _, ok := v.(string); ok && v == "" {
-			values[i] = sql.NullString{String: "", Valid: false}
-		}
-	}
-	_, err := ins.stmt.Exec(values...)
-	return err
-}
-
 // -------------------------------
 
 type Writer struct {
@@ -131,7 +117,7 @@ func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation
 	if err != nil {
 		return nil, err
 	}
-	return &Insert{stmt: stmt}, nil
+	return &db.Insert{Stmt: stmt}, nil
 }
 
 func (w *Writer) Commit() error {
@@ -143,5 +129,8 @@ func (w *Writer) Rollback() error {
 }
 
 func (w *Writer) Close() {
-
+	err := w.database.Close()
+	if err != nil {
+		log.Print("WARNING: error closing database - ", err)
+	}
 }

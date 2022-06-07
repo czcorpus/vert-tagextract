@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"vert-tagextract/v2/cnf"
 	"vert-tagextract/v2/db"
+	"vert-tagextract/v2/db/mysql"
 	"vert-tagextract/v2/db/sqlite"
 )
 
@@ -61,7 +62,7 @@ func (nw *NullWriter) Rollback() error {
 
 func (nw *NullWriter) Close() {}
 
-func NewDatabaseWriter(conf *cnf.VTEConf) db.Writer {
+func NewDatabaseWriter(conf *cnf.VTEConf) (db.Writer, error) {
 	switch conf.DB.Type {
 	case "sqlite":
 		db := &sqlite.Writer{
@@ -73,8 +74,10 @@ func NewDatabaseWriter(conf *cnf.VTEConf) db.Writer {
 			BibViewConf:    conf.BibView,
 			CountColumns:   conf.Ngrams.AttrColumns,
 		}
-		return db
+		return db, nil
+	case "mysql":
+		return mysql.NewWriter(conf)
 	default:
-		return &NullWriter{}
+		return &NullWriter{}, nil
 	}
 }

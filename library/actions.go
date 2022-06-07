@@ -46,7 +46,10 @@ func sendErrStatus(statusChan chan proc.Status, file string, err error) {
 // The 'statusChan' is for getting extraction status information including possible errors
 func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
 	statusChan := make(chan proc.Status)
-	dbWriter := factory.NewDatabaseWriter(conf)
+	dbWriter, err := factory.NewDatabaseWriter(conf)
+	if err != nil {
+		return nil, err
+	}
 	dbExisted := dbWriter.DatabaseExists()
 	if !dbExisted && appendData {
 		err := fmt.Errorf("update flag is set but the database %s does not exist", conf.DB.Name)
