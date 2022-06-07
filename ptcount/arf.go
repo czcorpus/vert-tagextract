@@ -21,8 +21,8 @@ import (
 	"log"
 	"math"
 
-	"vert-tagextract/v2/cnf"
-	"vert-tagextract/v2/ptcount/modders"
+	"github.com/czcorpus/vert-tagextract/v2/cnf"
+	"github.com/czcorpus/vert-tagextract/v2/ptcount/modders"
 
 	"github.com/tomachalek/vertigo/v5"
 )

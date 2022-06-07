@@ -18,10 +18,11 @@ package factory
 
 import (
 	"fmt"
-	"vert-tagextract/v2/cnf"
-	"vert-tagextract/v2/db"
-	"vert-tagextract/v2/db/mysql"
-	"vert-tagextract/v2/db/sqlite"
+
+	"github.com/czcorpus/vert-tagextract/v2/cnf"
+	"github.com/czcorpus/vert-tagextract/v2/db"
+	"github.com/czcorpus/vert-tagextract/v2/db/mysql"
+	"github.com/czcorpus/vert-tagextract/v2/db/sqlite"
 )
 
 type NullWriter struct {

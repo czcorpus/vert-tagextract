@@ -23,11 +23,11 @@ import (
 	"sync"
 	"time"
 
-	"vert-tagextract/v2/cnf"
-	"vert-tagextract/v2/db/colgen"
-	"vert-tagextract/v2/db/factory"
-	"vert-tagextract/v2/fs"
-	"vert-tagextract/v2/proc"
+	"github.com/czcorpus/vert-tagextract/v2/cnf"
+	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
+	"github.com/czcorpus/vert-tagextract/v2/db/factory"
+	"github.com/czcorpus/vert-tagextract/v2/fs"
+	"github.com/czcorpus/vert-tagextract/v2/proc"
 
 	"github.com/tomachalek/vertigo/v5"
 )

@@ -22,8 +22,9 @@ import (
 	"log"
 	"strings"
 	"time"
-	"vert-tagextract/v2/cnf"
-	"vert-tagextract/v2/db"
+
+	"github.com/czcorpus/vert-tagextract/v2/cnf"
+	"github.com/czcorpus/vert-tagextract/v2/db"
 
 	"github.com/go-sql-driver/mysql"
 )
