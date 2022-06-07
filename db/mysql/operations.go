@@ -21,7 +21,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"vert-tagextract/v2/db"
+
+	"github.com/czcorpus/vert-tagextract/v2/db"
 )
 
 // dropExisting drops existing tables/views.

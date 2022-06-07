@@ -19,7 +19,8 @@ package cnf
 import (
 	"encoding/json"
 	"io/ioutil"
-	"vert-tagextract/v2/db"
+
+	"github.com/czcorpus/vert-tagextract/v2/db"
 )
 
 // FilterConf specifies a plug-in containing

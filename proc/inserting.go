@@ -23,11 +23,11 @@ import (
 	"strings"
 	"time"
 
-	"vert-tagextract/v2/cnf"
-	"vert-tagextract/v2/db"
-	"vert-tagextract/v2/db/colgen"
-	"vert-tagextract/v2/ptcount"
-	"vert-tagextract/v2/ptcount/modders"
+	"github.com/czcorpus/vert-tagextract/v2/cnf"
+	"github.com/czcorpus/vert-tagextract/v2/db"
+	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
+	"github.com/czcorpus/vert-tagextract/v2/ptcount"
+	"github.com/czcorpus/vert-tagextract/v2/ptcount/modders"
 
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo/v5"
