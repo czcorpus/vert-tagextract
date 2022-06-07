@@ -19,22 +19,8 @@ package cnf
 import (
 	"encoding/json"
 	"io/ioutil"
+	"vert-tagextract/v2/db"
 )
-
-// SelfJoinConf contains information about aligned
-// structural attributes (e.g. sentences from two
-// languages).
-type SelfJoinConf struct {
-	ArgColumns  []string `json:"argColumns"`
-	GeneratorFn string   `json:"generatorFn"`
-}
-
-// BibViewConf is a sub-configuration for
-// bibliographic data.
-type BibViewConf struct {
-	Cols   []string `json:"cols"`
-	IDAttr string   `json:"idAttr"`
-}
 
 // FilterConf specifies a plug-in containing
 // a compatible filter (see LineFilter interface).
@@ -82,66 +68,18 @@ type VTEConf struct {
 	// as one.
 	VerticalFiles []string `json:"verticalFiles"`
 
-	DBFile         string       `json:"dbFile"`
-	DBConfSettings []string     `json:"dbConfSettings"`
-	Encoding       string       `json:"encoding"`
-	SelfJoin       SelfJoinConf `json:"selfJoin"`
-	IndexedCols    []string     `json:"indexedCols"`
-	BibView        BibViewConf  `json:"bibView"`
+	DB db.Conf `json:"db"`
+
+	Encoding    string          `json:"encoding"`
+	SelfJoin    db.SelfJoinConf `json:"selfJoin"`
+	IndexedCols []string        `json:"indexedCols"`
+	BibView     db.BibViewConf  `json:"bibView"`
 
 	Filter FilterConf `json:"filter"`
 }
 
-func (c *VTEConf) UsesSelfJoin() bool {
-	return c.SelfJoin.GeneratorFn != ""
-}
-
-func (c *VTEConf) HasConfiguredBib() bool {
-	return c.BibView.IDAttr != "" && len(c.BibView.Cols) > 0
-}
-
-func (c *VTEConf) GetCorpus() string {
-	return c.Corpus
-}
-
-func (c *VTEConf) GetAtomStructure() string {
-	return c.AtomStructure
-}
-
-func (c *VTEConf) GetAtomParentStructure() string {
-	return c.AtomParentStructure
-}
-
-func (c *VTEConf) GetStackStructEval() bool {
-	return c.StackStructEval
-}
-
-func (c *VTEConf) GetStructures() map[string][]string {
-	return c.Structures
-}
-
-func (c *VTEConf) GetNgrams() *NgramConf {
-	return &c.Ngrams
-}
-
 func (c *VTEConf) HasConfiguredFilter() bool {
 	return c.Filter.Lib != "" && c.Filter.Fn != ""
-}
-
-func (c *VTEConf) GetFilterLib() string {
-	return c.Filter.Lib
-}
-
-func (c *VTEConf) GetFilterFn() string {
-	return c.Filter.Fn
-}
-
-func (c *VTEConf) GetMaxNumErrors() int {
-	return c.MaxNumErrors
-}
-
-func (c *VTEConf) GetDbConfSettings() []string {
-	return c.DBConfSettings
 }
 
 func LoadConf(confPath string) (*VTEConf, error) {

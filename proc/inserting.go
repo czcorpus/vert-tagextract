@@ -17,18 +17,18 @@
 package proc
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/czcorpus/vert-tagextract/cnf"
-	"github.com/czcorpus/vert-tagextract/db"
-	"github.com/czcorpus/vert-tagextract/db/colgen"
-	"github.com/czcorpus/vert-tagextract/ptcount"
-	"github.com/czcorpus/vert-tagextract/ptcount/modders"
+	"vert-tagextract/v2/cnf"
+	"vert-tagextract/v2/db"
+	"vert-tagextract/v2/db/colgen"
+	"vert-tagextract/v2/ptcount"
+	"vert-tagextract/v2/ptcount/modders"
+
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo/v5"
 )
@@ -42,22 +42,6 @@ type Status struct {
 	Error          error
 }
 
-// TTEConfProvider defines an object able to
-// provide configuration data for TTExtractor factory.
-type TTEConfProvider interface {
-	GetCorpus() string
-	GetAtomStructure() string
-	GetAtomParentStructure() string
-	GetStackStructEval() bool
-	GetMaxNumErrors() int
-	GetStructures() map[string][]string
-	GetNgrams() *cnf.NgramConf
-	HasConfiguredFilter() bool
-	GetFilterLib() string
-	GetFilterFn() string
-	GetDbConfSettings() []string
-}
-
 // TTExtractor handles writing parsed data
 // to a sqlite3 database. Parsed values are
 // received pasivelly by implementing vertigo.LineProcessor
@@ -69,10 +53,9 @@ type TTExtractor struct {
 	tokenInAtomCounter int
 	tokenCounter       int
 	corpusID           string
-	database           *sql.DB
-	dbConf             []string
-	transaction        *sql.Tx
-	docInsert          *sql.Stmt
+	database           db.Writer
+	docInsert          db.InsertOperation
+	dbConf             *db.Conf
 	attrAccum          AttrAccumulator
 	atomStruct         string
 	atomParentStruct   string
@@ -87,39 +70,45 @@ type TTExtractor struct {
 	columnModders      []*modders.ModderChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
+	appendMode         bool
 	stopChan           <-chan os.Signal
 	statusChan         chan<- Status
 }
 
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
-func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
-	colgenFn colgen.AlignedColGenFn, statusChan chan Status, stopChan <-chan os.Signal) (*TTExtractor, error) {
-	filter, err := LoadCustomFilter(conf.GetFilterLib(), conf.GetFilterFn())
+func NewTTExtractor(
+	database db.Writer,
+	conf *cnf.VTEConf,
+	colgenFn colgen.AlignedColGenFn,
+	statusChan chan Status,
+	stopChan <-chan os.Signal,
+) (*TTExtractor, error) {
+	filter, err := LoadCustomFilter(conf.Filter.Lib, conf.Filter.Fn)
 	if err != nil {
 		return nil, err
 	}
 	ans := &TTExtractor{
 		database:         database,
-		dbConf:           conf.GetDbConfSettings(),
-		corpusID:         conf.GetCorpus(),
-		atomStruct:       conf.GetAtomStructure(),
-		atomParentStruct: conf.GetAtomParentStructure(),
+		dbConf:           &conf.DB,
+		corpusID:         conf.Corpus,
+		atomStruct:       conf.AtomStructure,
+		atomParentStruct: conf.AtomParentStructure,
 		lastAtomOpenLine: -1,
-		structures:       conf.GetStructures(),
+		structures:       conf.Structures,
 		colgenFn:         colgenFn,
-		ngramConf:        conf.GetNgrams(),
+		ngramConf:        &conf.Ngrams,
 		colCounts:        make(map[string]*ptcount.NgramCounter),
-		columnModders:    make([]*modders.ModderChain, len(conf.GetNgrams().AttrColumns)),
+		columnModders:    make([]*modders.ModderChain, len(conf.Ngrams.AttrColumns)),
 		filter:           filter,
-		maxNumErrors:     conf.GetMaxNumErrors(),
+		maxNumErrors:     conf.MaxNumErrors,
 		currSentence:     make([][]int, 0, 20),
 		valueDict:        ptcount.NewWordDict(),
 		statusChan:       statusChan,
 		stopChan:         stopChan,
 	}
 
-	for i, m := range conf.GetNgrams().ColumnMods {
+	for i, m := range conf.Ngrams.ColumnMods {
 		values := strings.Split(m, ":")
 		if len(values) > 0 {
 			mod := make([]modders.Modder, 0, len(values))
@@ -129,7 +118,7 @@ func NewTTExtractor(database *sql.DB, conf TTEConfProvider,
 			ans.columnModders[i] = modders.NewModderChain(mod)
 		}
 	}
-	if conf.GetStackStructEval() {
+	if conf.StackStructEval {
 		ans.attrAccum = newStructStack()
 
 	} else {
@@ -176,7 +165,7 @@ func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error {
 	select {
 	case s := <-tte.stopChan:
-		return fmt.Errorf("Received stop signal: %s", s)
+		return fmt.Errorf("received stop signal: %s", s)
 	default:
 	}
 	if err != nil {
@@ -237,7 +226,7 @@ func (tte *TTExtractor) getCurrentAccumAttrs() map[string]interface{} {
 func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) error {
 	select {
 	case s := <-tte.stopChan:
-		return fmt.Errorf("Received stop signal: %s", s)
+		return fmt.Errorf("received stop signal: %s", s)
 	default:
 	}
 	if err != nil { // error from the Vertigo parser
@@ -304,7 +293,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, err error) error {
 	select {
 	case s := <-tte.stopChan:
-		return fmt.Errorf("Received stop signal: %s", s)
+		return fmt.Errorf("received stop signal: %s", s)
 	default:
 	}
 	if err != nil { // error from the Vertigo parser
@@ -328,7 +317,7 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 				values[i] = "" // liveattrs plug-in does not like NULLs
 			}
 		}
-		_, err := tte.docInsert.Exec(values...)
+		err := tte.docInsert.Exec(values...)
 		if err != nil {
 			return tte.handleProcError(line, err)
 
@@ -391,7 +380,7 @@ func (tte *TTExtractor) generateAttrList() []string {
 
 func (tte *TTExtractor) insertCounts() error {
 	colItems := append(db.GenerateColCountNames(tte.ngramConf.AttrColumns), "corpus_id", "count", "arf")
-	ins, err := db.PrepareInsert(tte.transaction, "colcounts", colItems)
+	ins, err := tte.database.PrepareInsert("colcounts", colItems)
 	if err != nil {
 		return nil
 	}
@@ -399,7 +388,7 @@ func (tte *TTExtractor) insertCounts() error {
 	for _, count := range tte.colCounts {
 		select {
 		case s := <-tte.stopChan:
-			return fmt.Errorf("Received stop signal: %s", s)
+			return fmt.Errorf("received stop signal: %s", s)
 		default:
 		}
 		args := make([]interface{}, count.Width()+3)
@@ -440,43 +429,26 @@ func (tte *TTExtractor) insertCounts() error {
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 	log.Print("INFO: using zero-based indexing when reporting line errors")
 	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
-	var dbConf []string
-	if len(tte.dbConf) > 0 {
-		dbConf = tte.dbConf
-
-	} else {
-		log.Print("INFO: no database configuration found, using default (see below)")
-		dbConf = []string{
-			"PRAGMA synchronous = OFF",
-			"PRAGMA journal_mode = MEMORY",
-		}
-	}
-	for _, cnf := range dbConf {
-		log.Printf("INFO: Applying %s", cnf)
-		tte.database.Exec(cnf)
-	}
-
-	var err error
-	tte.transaction, err = tte.database.Begin()
-	if err != nil {
-		return fmt.Errorf("Failed to start a database transaction: %s", err)
-	}
 
 	tte.attrNames = tte.generateAttrList()
-	tte.docInsert, err = db.PrepareInsert(tte.transaction, "item", tte.attrNames)
+	err := tte.database.Initialize(tte.appendMode)
+	if err != nil {
+		return err
+	}
+	tte.docInsert, err = tte.database.PrepareInsert("item", tte.attrNames)
 	if err != nil {
 		return err
 	}
 	parserErr := vertigo.ParseVerticalFile(conf, tte)
 	if parserErr != nil {
-		tte.transaction.Rollback()
+		tte.database.Rollback()
 		tte.statusChan <- Status{
 			Datetime:       time.Now(),
 			Error:          parserErr,
 			ProcessedAtoms: tte.atomCounter,
 			ProcessedLines: -1,
 		}
-		return fmt.Errorf("Failed to parse vertical file: %s", parserErr)
+		return fmt.Errorf("failed to parse vertical file: %s", parserErr)
 	}
 	if len(tte.ngramConf.AttrColumns) > 0 {
 		if tte.ngramConf.CalcARF {
@@ -501,9 +473,9 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 			return err
 		}
 	}
-	err = tte.transaction.Commit()
+	err = tte.database.Commit()
 	if err != nil {
-		return fmt.Errorf("Failed to commit database transaction: %s", err)
+		return fmt.Errorf("failed to commit database transaction: %s", err)
 	}
 	log.Print("...DONE")
 	return nil
