@@ -1,4 +1,4 @@
-module vert-tagextract/v2
+module github.com/czcorpus/vert-tagextract/v2
 
 go 1.18
 
