@@ -7,14 +7,14 @@ to an **SQL database**.
 
 The meta-data database part is used by [KonText](https://github.com/czcorpus/kontext) for its *liveattrs* plug-in.
 The complete word frequency database is used by [Word at a Glance](https://github.com/czcorpus/wdglance) but it
-can be used by anyone interested in frequency information related to individual words (i.e. no n-grams).
+can be used by anyone interested in n-gram analysis.
 
 - [Vert-tagextract](#vert-tagextract)
   - [Preparing the process](#preparing-the-process)
     - [Example config](#example-config)
   - [Configuration items](#configuration-items)
     - [verticalFile](#verticalfile)
-    - [dbFile](#dbfile)
+    - [db](#db)
     - [atomStructure](#atomstructure)
     - [stackStructEval](#stackstructeval)
     - [structures](#structures)
@@ -95,12 +95,17 @@ type: *string*
 
 a path to a vertical file (plain text or *gz*)
 
-<a name="conf_dbFile"></a>
-### dbFile
+<a name="conf_db"></a>
+### db
 
-type: *string*
+type: *object*
 
-a path of the sqlite3 database file the metadata will be exported to
+* `db.type: string` (either `sqlite` or `mysql`)
+* `db.name: string`
+* `db.host: string`
+* `db.user: string`
+* `db.password: string`
+* `db.preconfSettings: Array<string>`
 
 <a name="conf_atomStructure"></a>
 ### atomStructure
