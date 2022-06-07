@@ -100,12 +100,14 @@ a path to a vertical file (plain text or *gz*)
 
 type: *object*
 
-* `db.type: string` (either `sqlite` or `mysql`)
-* `db.name: string`
-* `db.host: string`
-* `db.user: string`
-* `db.password: string`
-* `db.preconfSettings: Array<string>`
+attributes:
+
+* `type: 'sqlite'|'mysql'`
+* `name: string`
+* `host: string`
+* `user: string`
+* `password: string`
+* `preconfSettings: Array<string>`
 
 <a name="conf_atomStructure"></a>
 ### atomStructure
