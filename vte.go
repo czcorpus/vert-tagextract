@@ -27,9 +27,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/czcorpus/vert-tagextract/cnf"
-	"github.com/czcorpus/vert-tagextract/db/colgen"
-	"github.com/czcorpus/vert-tagextract/library"
+	"vert-tagextract/v2/cnf"
+	"vert-tagextract/v2/db/colgen"
+	"vert-tagextract/v2/library"
 
 	"github.com/tomachalek/vertigo/v5"
 )

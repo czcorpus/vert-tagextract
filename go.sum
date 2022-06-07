@@ -1,5 +1,7 @@
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/go-sql-driver/mysql v1.6.0 h1:BCTh4TKNUYmOmMUcQ3IipzF5prigylS7XXjEkfCHuOE=
+github.com/go-sql-driver/mysql v1.6.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/mattn/go-sqlite3 v1.10.0 h1:jbhqpg7tQe4SupckyijYiy0mJJ/pRyHvXf7JdWK860o=
 github.com/mattn/go-sqlite3 v1.10.0/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
@@ -7,12 +9,6 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd0=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
-github.com/tomachalek/vertigo/v5 v5.0.0 h1:PFAf9iArBwHf0P//fNmQYf//u4pyyH4BCIreRQsM86g=
-github.com/tomachalek/vertigo/v5 v5.0.0/go.mod h1:Kr4P4+S5guPcvro1gzKwjyJSPMLNSaXdCTv5had1xIc=
-github.com/tomachalek/vertigo/v5 v5.0.1 h1:D3HcXx8ygDR5xeI0ysgsC3fIT5xwH5V0+3G6JujhPHE=
-github.com/tomachalek/vertigo/v5 v5.0.1/go.mod h1:Kr4P4+S5guPcvro1gzKwjyJSPMLNSaXdCTv5had1xIc=
-github.com/tomachalek/vertigo/v5 v5.0.2 h1:LzTrMzachAkVzWjpOJeo1ZHGUnwm2bqljU89YcbRMVs=
-github.com/tomachalek/vertigo/v5 v5.0.2/go.mod h1:Kr4P4+S5guPcvro1gzKwjyJSPMLNSaXdCTv5had1xIc=
 github.com/tomachalek/vertigo/v5 v5.0.3 h1:6DoN2Ov0XcgNVJ2kVEAlsjfXs1fwKWznHe045pGFZ+4=
 github.com/tomachalek/vertigo/v5 v5.0.3/go.mod h1:Kr4P4+S5guPcvro1gzKwjyJSPMLNSaXdCTv5had1xIc=
 golang.org/x/text v0.3.3 h1:cokOdA+Jmi5PJGXLlLllQSgYigAEfHXJAERHVMaCc2k=

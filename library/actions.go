@@ -23,11 +23,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/czcorpus/vert-tagextract/cnf"
-	"github.com/czcorpus/vert-tagextract/db"
-	"github.com/czcorpus/vert-tagextract/db/colgen"
-	"github.com/czcorpus/vert-tagextract/fs"
-	"github.com/czcorpus/vert-tagextract/proc"
+	"vert-tagextract/v2/cnf"
+	"vert-tagextract/v2/db/colgen"
+	"vert-tagextract/v2/db/factory"
+	"vert-tagextract/v2/fs"
+	"vert-tagextract/v2/proc"
 
 	"github.com/tomachalek/vertigo/v5"
 )
@@ -46,35 +46,14 @@ func sendErrStatus(statusChan chan proc.Status, file string, err error) {
 // The 'statusChan' is for getting extraction status information including possible errors
 func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
 	statusChan := make(chan proc.Status)
-
-	if !fs.IsFile(conf.DBFile) && appendData {
-		err := fmt.Errorf("Update flag is set but the database %s does not exist", conf.DBFile)
-		return nil, err
-	}
-
-	dbConn, err := db.OpenDatabase(conf.DBFile)
+	dbWriter, err := factory.NewDatabaseWriter(conf)
 	if err != nil {
 		return nil, err
 	}
-
-	if !appendData {
-		if fs.IsFile(conf.DBFile) {
-			log.Printf("The database file %s already exists. Existing data will be deleted.", conf.DBFile)
-			err := db.DropExisting(dbConn)
-			if err != nil {
-				return nil, err
-			}
-		}
-		err := db.CreateSchema(dbConn, conf.Structures, conf.IndexedCols, conf.UsesSelfJoin(), conf.Ngrams.AttrColumns)
-		if err != nil {
-			return nil, err
-		}
-		if conf.HasConfiguredBib() {
-			err := db.CreateBibView(dbConn, conf.BibView.Cols, conf.BibView.IDAttr)
-			if err != nil {
-				return nil, err
-			}
-		}
+	dbExisted := dbWriter.DatabaseExists()
+	if !dbExisted && appendData {
+		err := fmt.Errorf("update flag is set but the database %s does not exist", conf.DB.Name)
+		return nil, err
 	}
 
 	var filesToProc []string
@@ -96,11 +75,11 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		filesToProc = conf.VerticalFiles
 
 	} else {
-		return nil, fmt.Errorf("Neither verticalFile nor verticalFiles provide a valid data source")
+		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
 	}
 
 	go func() {
-		defer dbConn.Close()
+		defer dbWriter.Close()
 		defer close(statusChan)
 		var wg sync.WaitGroup
 		wg.Add(len(filesToProc))
@@ -113,11 +92,11 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 			}
 
 			var fn colgen.AlignedColGenFn
-			if conf.UsesSelfJoin() {
+			if conf.SelfJoin.IsConfigured() {
 				fn = func(args map[string]interface{}) (string, error) {
 					ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
 					if err != nil {
-
+						// TODO handle error
 					}
 					return ans(args, conf.SelfJoin.ArgColumns)
 				}
@@ -131,7 +110,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 					statusChan <- upd
 				}
 			}()
-			tte, err := proc.NewTTExtractor(dbConn, conf, fn, subStatusChan, stopChan)
+			tte, err := proc.NewTTExtractor(dbWriter, conf, fn, subStatusChan, stopChan)
 			if err != nil {
 				close(subStatusChan)
 				sendErrStatus(statusChan, "", err)

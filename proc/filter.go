@@ -23,7 +23,8 @@ import (
 	"plugin"
 	"strings"
 
-	"github.com/czcorpus/vert-tagextract/fs"
+	"vert-tagextract/v2/fs"
+
 	"github.com/tomachalek/vertigo/v5"
 )
 
