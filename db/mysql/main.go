@@ -100,19 +100,6 @@ func (w *Writer) Initialize(appendMode bool) error {
 	return err
 }
 
-func (w *Writer) CreateSchema(
-	structures map[string][]string,
-	indexedCols []string,
-	useSelfJoin bool,
-	countColumns []int,
-) error {
-	return nil // TODO
-}
-
-func (w *Writer) CreateBibView(cols []string, idAttr string) error {
-	return nil // TODO
-}
-
 func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation, error) {
 	if w.tx == nil {
 		return nil, fmt.Errorf("cannot prepare insert - no transaction active")

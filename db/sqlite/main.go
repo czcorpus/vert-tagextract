@@ -95,16 +95,6 @@ func (w *Writer) Initialize(appendMode bool) error {
 	return err
 }
 
-func (w *Writer) CreateSchema(
-	structures map[string][]string,
-	indexedCols []string,
-	useSelfJoin bool,
-	countColumns []int,
-) error {
-	return createSchema(
-		w.database, w.Structures, w.IndexedCols, w.SelfJoinConf.IsConfigured(), w.CountColumns)
-}
-
 func (w *Writer) CreateBibView(cols []string, idAttr string) error {
 	return createBibView(w.database, cols, idAttr)
 }

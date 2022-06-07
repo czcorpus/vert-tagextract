@@ -72,13 +72,6 @@ type Conf struct {
 type Writer interface {
 	DatabaseExists() bool
 	Initialize(appendMode bool) error
-	CreateSchema(
-		structures map[string][]string,
-		indexedCols []string,
-		useSelfJoin bool,
-		countColumns []int,
-	) error
-	CreateBibView(cols []string, idAttr string) error
 	PrepareInsert(table string, attrs []string) (InsertOperation, error)
 	Commit() error
 	Rollback() error
