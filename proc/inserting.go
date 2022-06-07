@@ -308,7 +308,7 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 		accumItem.elm.Name == tte.atomParentStruct && tte.lastAtomOpenLine < accumItem.lineOpen {
 
 		tte.currAtomAttrs["poscount"] = tte.tokenInAtomCounter
-		values := make([]interface{}, len(tte.attrNames))
+		values := make([]any, len(tte.attrNames))
 		for i, n := range tte.attrNames {
 			if tte.currAtomAttrs[n] != nil {
 				values[i] = tte.currAtomAttrs[n]

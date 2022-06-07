@@ -62,14 +62,16 @@ func (nw *NullWriter) Rollback() error {
 func (nw *NullWriter) Close() {}
 
 func NewDatabaseWriter(conf *cnf.VTEConf) db.Writer {
-	switch conf.DB.DBType {
+	switch conf.DB.Type {
 	case "sqlite":
 		db := &sqlite.Writer{
-			Structures:   conf.Structures,
-			IndexedCols:  conf.IndexedCols,
-			SelfJoinConf: conf.SelfJoin,
-			BibViewConf:  conf.BibView,
-			CountColumns: conf.Ngrams.AttrColumns,
+			Path:           conf.DB.Name,
+			PreconfQueries: conf.DB.PreconfQueries,
+			Structures:     conf.Structures,
+			IndexedCols:    conf.IndexedCols,
+			SelfJoinConf:   conf.SelfJoin,
+			BibViewConf:    conf.BibView,
+			CountColumns:   conf.Ngrams.AttrColumns,
 		}
 		return db
 	default:

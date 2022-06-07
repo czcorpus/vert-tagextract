@@ -29,7 +29,12 @@ type Insert struct {
 }
 
 func (ins *Insert) Exec(values ...any) error {
-	_, err := ins.stmt.Exec(values)
+	for i, v := range values {
+		if _, ok := v.(string); ok && v == "" {
+			values[i] = sql.NullString{String: "", Valid: false}
+		}
+	}
+	_, err := ins.stmt.Exec(values...)
 	return err
 }
 
@@ -90,7 +95,7 @@ func (w *Writer) Initialize(appendMode bool) error {
 		dbConf = w.PreconfQueries
 
 	} else {
-		log.Print("INFO: no database configuration found, using default (see below)")
+		log.Print("INFO: no pre-configuration queries found, using default:")
 		dbConf = []string{
 			"PRAGMA synchronous = OFF",
 			"PRAGMA journal_mode = MEMORY",

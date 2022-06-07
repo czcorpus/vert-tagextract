@@ -49,7 +49,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	dbWriter := factory.NewDatabaseWriter(conf)
 	dbExisted := dbWriter.DatabaseExists()
 	if !dbExisted && appendData {
-		err := fmt.Errorf("Update flag is set but the database %s does not exist", conf.DB.DBName)
+		err := fmt.Errorf("update flag is set but the database %s does not exist", conf.DB.Name)
 		return nil, err
 	}
 
@@ -72,7 +72,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		filesToProc = conf.VerticalFiles
 
 	} else {
-		return nil, fmt.Errorf("Neither verticalFile nor verticalFiles provide a valid data source")
+		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
 	}
 
 	go func() {
@@ -93,7 +93,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 				fn = func(args map[string]interface{}) (string, error) {
 					ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
 					if err != nil {
-
+						// TODO handle error
 					}
 					return ans(args, conf.SelfJoin.ArgColumns)
 				}

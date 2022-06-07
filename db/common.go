@@ -46,8 +46,8 @@ func (c *BibViewConf) IsConfigured() bool {
 }
 
 type Conf struct {
-	DBType         string   `json:"dbType"`
-	DBName         string   `json:"dbName"`
+	Type           string   `json:"type"`
+	Name           string   `json:"name"`
 	User           string   `json:"user"`
 	Password       string   `json:"password"`
 	PreconfQueries []string `json:"preconfSettings"`
