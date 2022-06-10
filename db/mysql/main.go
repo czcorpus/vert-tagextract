@@ -47,8 +47,8 @@ type Writer struct {
 
 func (w *Writer) DatabaseExists() bool {
 	row := w.database.QueryRow(
-		`SELECT * FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-		w.dbName, w.corpusName,
+		`SELECT COUNT(*) > 0 FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+		w.dbName, w.corpusName+"_item",
 	)
 	var ans bool
 	err := row.Scan(&ans)
@@ -65,7 +65,6 @@ func (w *Writer) DatabaseExists() bool {
 func (w *Writer) Initialize(appendMode bool) error {
 	var err error
 	dbExisted := w.DatabaseExists()
-
 	if !appendMode {
 		if dbExisted {
 			log.Printf(
@@ -148,6 +147,7 @@ func NewWriter(conf *cnf.VTEConf) (*Writer, error) {
 	}
 	return &Writer{
 		database:     db,
+		dbName:       conf.DB.Name,
 		corpusName:   conf.Corpus,
 		Structures:   conf.Structures,
 		IndexedCols:  conf.IndexedCols,

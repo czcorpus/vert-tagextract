@@ -83,6 +83,14 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		defer close(statusChan)
 		var wg sync.WaitGroup
 		wg.Add(len(filesToProc))
+
+		err := dbWriter.Initialize(appendData)
+		if err != nil {
+			wg.Done()
+			sendErrStatus(statusChan, "", err)
+			return
+		}
+
 		for _, verticalFile := range filesToProc {
 			log.Printf("Processing vertical %s", verticalFile)
 			parserConf := &vertigo.ParserConf{
@@ -96,7 +104,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 				fn = func(args map[string]interface{}) (string, error) {
 					ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
 					if err != nil {
-						// TODO handle error
+						return "", err
 					}
 					return ans(args, conf.SelfJoin.ArgColumns)
 				}
@@ -122,6 +130,11 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 			}
 		}
 		wg.Wait()
+		err = dbWriter.Commit()
+		if err != nil {
+			sendErrStatus(statusChan, "", err)
+		}
+		log.Print("...DONE")
 	}()
 
 	return statusChan, nil
