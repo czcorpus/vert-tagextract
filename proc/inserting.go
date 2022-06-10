@@ -429,12 +429,8 @@ func (tte *TTExtractor) insertCounts() error {
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 	log.Print("INFO: using zero-based indexing when reporting line errors")
 	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
-
 	tte.attrNames = tte.generateAttrList()
-	err := tte.database.Initialize(tte.appendMode)
-	if err != nil {
-		return err
-	}
+	var err error
 	tte.docInsert, err = tte.database.PrepareInsert("item", tte.attrNames)
 	if err != nil {
 		return err
@@ -473,10 +469,5 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 			return err
 		}
 	}
-	err = tte.database.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit database transaction: %s", err)
-	}
-	log.Print("...DONE")
 	return nil
 }
