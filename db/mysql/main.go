@@ -34,10 +34,14 @@ func joinArgs(args []string) string {
 }
 
 type Writer struct {
-	database     *sql.DB
-	tx           *sql.Tx
-	dbName       string
-	corpusName   string
+	database *sql.DB
+	tx       *sql.Tx
+	dbName   string
+
+	// groupedCorpusName represents a derived corpus name which is able to group multiple
+	// (aligned) corpora together (e.g. intercorp_v13_en, intercorp_v13_cs => intercorp_v13)
+	groupedCorpusName string
+
 	Structures   map[string][]string
 	IndexedCols  []string
 	SelfJoinConf db.SelfJoinConf
@@ -48,7 +52,7 @@ type Writer struct {
 func (w *Writer) DatabaseExists() bool {
 	row := w.database.QueryRow(
 		`SELECT COUNT(*) > 0 FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-		w.dbName, w.corpusName+"_item",
+		w.dbName, w.groupedCorpusName+"_item",
 	)
 	var ans bool
 	err := row.Scan(&ans)
@@ -69,16 +73,16 @@ func (w *Writer) Initialize(appendMode bool) error {
 		if dbExisted {
 			log.Printf(
 				"The data storage %s/%s already exists. Existing data will be deleted.",
-				w.dbName, w.corpusName,
+				w.dbName, w.groupedCorpusName,
 			)
-			err := dropExisting(w.database, w.corpusName)
+			err := dropExisting(w.database, w.groupedCorpusName)
 			if err != nil {
 				return err
 			}
 		}
 		err := createSchema(
 			w.database,
-			w.corpusName,
+			w.groupedCorpusName,
 			w.Structures,
 			w.IndexedCols,
 			w.SelfJoinConf.IsConfigured(),
@@ -89,7 +93,7 @@ func (w *Writer) Initialize(appendMode bool) error {
 		}
 		if w.BibViewConf.IsConfigured() {
 			err := createBibView(
-				w.database, w.corpusName, w.BibViewConf.Cols, w.BibViewConf.IDAttr)
+				w.database, w.groupedCorpusName, w.BibViewConf.Cols, w.BibViewConf.IDAttr)
 			if err != nil {
 				return err
 			}
@@ -109,7 +113,7 @@ func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation
 		valReplac[i] = "?"
 	}
 	stmt, err := w.tx.Prepare(
-		fmt.Sprintf("INSERT INTO %s_%s (%s) VALUES (%s)", w.corpusName, table, joinArgs(attrs), joinArgs(valReplac)))
+		fmt.Sprintf("INSERT INTO %s_%s (%s) VALUES (%s)", w.groupedCorpusName, table, joinArgs(attrs), joinArgs(valReplac)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare INSERT: %s", err)
 	}
@@ -145,14 +149,18 @@ func NewWriter(conf *cnf.VTEConf) (*Writer, error) {
 	if err != nil {
 		return nil, err
 	}
+	groupedCorpusName := conf.Corpus
+	if conf.ParallelCorpus != "" {
+		groupedCorpusName = conf.ParallelCorpus
+	}
 	return &Writer{
-		database:     db,
-		dbName:       conf.DB.Name,
-		corpusName:   conf.Corpus,
-		Structures:   conf.Structures,
-		IndexedCols:  conf.IndexedCols,
-		SelfJoinConf: conf.SelfJoin,
-		BibViewConf:  conf.BibView,
-		CountColumns: conf.Ngrams.AttrColumns,
+		database:          db,
+		dbName:            conf.DB.Name,
+		groupedCorpusName: groupedCorpusName,
+		Structures:        conf.Structures,
+		IndexedCols:       conf.IndexedCols,
+		SelfJoinConf:      conf.SelfJoin,
+		BibViewConf:       conf.BibView,
+		CountColumns:      conf.Ngrams.AttrColumns,
 	}, nil
 }
