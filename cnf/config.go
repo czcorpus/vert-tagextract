@@ -46,6 +46,7 @@ type NgramConf struct {
 // data extraction task.
 type VTEConf struct {
 	Corpus              string `json:"corpus"`
+	ParallelCorpus      string `json:"parallelCorpus,omitempty"`
 	AtomStructure       string `json:"atomStructure"`
 	AtomParentStructure string `json:"atomParentStructure"`
 	StackStructEval     bool   `json:"stackStructEval"`
