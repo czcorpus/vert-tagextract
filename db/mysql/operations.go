@@ -81,9 +81,9 @@ func generateAuxColDefs(hasSelfJoin bool) []string {
 	ans := make([]string, 4)
 	ans[0] = "poscount INTEGER"
 	ans[1] = "wordcount INTEGER"
-	ans[2] = "corpus_id VARCHAR(127)"
+	ans[2] = "corpus_id VARCHAR(63)"
 	if hasSelfJoin {
-		ans[3] = "item_id VARCHAR(255)"
+		ans[3] = "item_id VARCHAR(127)"
 
 	} else {
 		ans = ans[:3]
