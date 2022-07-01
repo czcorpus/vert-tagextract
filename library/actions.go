@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,7 +62,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	if conf.VerticalFile != "" && len(conf.VerticalFiles) > 0 {
 		return nil, fmt.Errorf("cannot use verticalFile and verticalFiles at the same time")
 	}
-	if conf.VerticalFile != "" && fs.IsFile(conf.VerticalFile) {
+	if conf.VerticalFile != "" && (fs.IsFile(conf.VerticalFile) || strings.HasPrefix(conf.VerticalFile, "|")) {
 		filesToProc = []string{conf.VerticalFile}
 
 	} else if conf.VerticalFile != "" && fs.IsDir(conf.VerticalFile) {
