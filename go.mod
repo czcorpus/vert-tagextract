@@ -6,7 +6,7 @@ require (
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/mattn/go-sqlite3 v1.10.0
 	github.com/stretchr/testify v1.6.1
-	github.com/tomachalek/vertigo/v5 v5.0.3
+	github.com/tomachalek/vertigo/v5 v5.1.0
 )
 
 require (
