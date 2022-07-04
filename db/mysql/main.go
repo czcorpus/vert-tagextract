@@ -52,7 +52,7 @@ type Writer struct {
 func (w *Writer) DatabaseExists() bool {
 	row := w.database.QueryRow(
 		`SELECT COUNT(*) > 0 FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-		w.dbName, w.groupedCorpusName+"_item",
+		w.dbName, w.groupedCorpusName+"_liveattrs_entry",
 	)
 	var ans bool
 	err := row.Scan(&ans)
