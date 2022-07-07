@@ -431,7 +431,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
 	tte.attrNames = tte.generateAttrList()
 	var err error
-	tte.docInsert, err = tte.database.PrepareInsert("item", tte.attrNames)
+	tte.docInsert, err = tte.database.PrepareInsert("liveattrs_entry", tte.attrNames)
 	if err != nil {
 		return err
 	}
