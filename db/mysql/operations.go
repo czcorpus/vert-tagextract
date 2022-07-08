@@ -38,17 +38,17 @@ func dropExisting(database *sql.DB, groupedCorpusName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop table 'cache': %s", err)
 	}
-	_, err = database.Exec(fmt.Sprintf("DROP VIEW IF EXISTS %s_bibliography", groupedCorpusName))
+	_, err = database.Exec(fmt.Sprintf("DROP VIEW IF EXISTS `%s_bibliography`", groupedCorpusName))
 	if err != nil {
-		return fmt.Errorf("failed to drop view '%s_bibliography': %s", groupedCorpusName, err)
+		return fmt.Errorf("failed to drop view `%s_bibliography`: %s", groupedCorpusName, err)
 	}
-	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s_liveattrs_entry", groupedCorpusName))
+	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s_liveattrs_entry`", groupedCorpusName))
 	if err != nil {
 		return fmt.Errorf("failed to drop table '%s_liveattrs_entry': %s", groupedCorpusName, err)
 	}
-	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s_colcounts", groupedCorpusName))
+	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s_colcounts`", groupedCorpusName))
 	if err != nil {
-		return fmt.Errorf("failed to drop table '%s_colcounts': %s", groupedCorpusName, err)
+		return fmt.Errorf("failed to drop table `%s_colcounts`: %s", groupedCorpusName, err)
 	}
 	log.Print("...DONE")
 	return nil
@@ -95,12 +95,12 @@ func createAuxIndices(database *sql.DB, groupedCorpusName string, cols []string)
 	var err error
 	for _, c := range cols {
 		_, err = database.Exec(
-			fmt.Sprintf("CREATE INDEX %s_%s_idx ON %s_liveattrs_entry(%s)",
+			fmt.Sprintf("CREATE INDEX %s_%s_idx ON `%s_liveattrs_entry`(%s)",
 				groupedCorpusName, c, groupedCorpusName, c))
 		if err != nil {
 			return err
 		}
-		log.Printf("Created custom index %s_%s_idx on %s_liveattrs_entry(%s)",
+		log.Printf("Created custom index %s_%s_idx on `%s_liveattrs_entry`(%s)",
 			groupedCorpusName, c, groupedCorpusName, c)
 	}
 	return nil
@@ -126,7 +126,7 @@ func generateViewColDefs(cols []string, idAttr string) []string {
 func createBibView(database *sql.DB, groupedCorpusName string, cols []string, idAttr string) error {
 	colDefs := generateViewColDefs(cols, idAttr)
 	_, err := database.Exec(fmt.Sprintf(
-		"CREATE VIEW %s_bibliography AS SELECT %s FROM %s_liveattrs_entry",
+		"CREATE VIEW %s_bibliography AS SELECT %s FROM `%s_liveattrs_entry`",
 		groupedCorpusName, joinArgs(colDefs), groupedCorpusName))
 	if err != nil {
 		return err
@@ -153,18 +153,18 @@ func createSchema(
 	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr := database.Exec(
-		fmt.Sprintf("CREATE TABLE %s_liveattrs_entry (id INTEGER PRIMARY KEY auto_increment, %s)", groupedCorpusName, joinArgs(allCollsDefs)))
+		fmt.Sprintf("CREATE TABLE `%s_liveattrs_entry` (id INTEGER PRIMARY KEY auto_increment, %s)", groupedCorpusName, joinArgs(allCollsDefs)))
 	if dbErr != nil {
 		return fmt.Errorf("failed to create table '%s_liveattrs_entry': %s", groupedCorpusName, dbErr)
 	}
 
 	if useSelfJoin {
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE UNIQUE INDEX %s_liveattrs_entry_item_id_corpus_id_idx ON %s_liveattrs_entry(item_id, corpus_id)",
+			"CREATE UNIQUE INDEX `%s_liveattrs_entry_item_id_corpus_id_idx` ON `%s_liveattrs_entry`(item_id, corpus_id)",
 			groupedCorpusName, groupedCorpusName))
 		if dbErr != nil {
 			return fmt.Errorf(
-				"failed to create index %s_liveattrs_entry_item_id_corpus_id_idx on %s_liveattrs_entry(item_id, corpus_id): %s",
+				"failed to create index `%s_liveattrs_entry_item_id_corpus_id_idx` on `%s_liveattrs_entry`(item_id, corpus_id): %s",
 				groupedCorpusName, groupedCorpusName, dbErr)
 		}
 	}
