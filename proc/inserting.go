@@ -17,6 +17,7 @@
 package proc
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -31,6 +32,10 @@ import (
 
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
 	"github.com/tomachalek/vertigo/v5"
+)
+
+var (
+	ErrorTooManyParsingErrors = errors.New("too many parsing errors")
 )
 
 // Status stores some basic information about vertical file processing
@@ -143,8 +148,8 @@ func (tte *TTExtractor) GetColCounts() map[string]*ptcount.NgramCounter {
 // handleProcError reports a provided error err by sending it via
 // statusChan and also evaluates total number of errors and in case
 // it is too high (compared with a limit defined in maxNumErrors)
-// it returns a new error which should be considered a processing
-// stop signal.
+// it returns ErrorTooManyParsingErrors which should be considered a processing
+// stop signal (but it's still up to the consumer).
 func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 	tte.statusChan <- Status{
 		Datetime:       time.Now(),
@@ -155,7 +160,7 @@ func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 	log.Printf("ERROR: Line %d: %s", lineNum, err)
 	tte.errorCounter++
 	if tte.errorCounter > tte.maxNumErrors {
-		return fmt.Errorf("FATAL: too many errors")
+		return ErrorTooManyParsingErrors
 	}
 	return nil
 }
