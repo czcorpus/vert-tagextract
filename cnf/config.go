@@ -63,12 +63,12 @@ type VTEConf struct {
 	// or a path to a directory containing multiple vertical
 	// files (then we assume all the vertical files are of the
 	// same structure)
-	VerticalFile string `json:"verticalFile"`
+	VerticalFile string `json:"verticalFile,omitempty"`
 
 	// VerticalFiles is an alternative to VerticalFile allowing
 	// explicit selection of one or more files to be processed
 	// as one.
-	VerticalFiles []string `json:"verticalFiles"`
+	VerticalFiles []string `json:"verticalFiles,omitempty"`
 
 	DB db.Conf `json:"db"`
 
