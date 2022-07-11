@@ -95,12 +95,12 @@ func createAuxIndices(database *sql.DB, groupedCorpusName string, cols []string)
 	var err error
 	for _, c := range cols {
 		_, err = database.Exec(
-			fmt.Sprintf("CREATE INDEX %s_%s_idx ON %s_liveattrs_entry(%s)",
+			fmt.Sprintf("CREATE INDEX `%s_%s_idx` ON `%s_liveattrs_entry`(%s)",
 				groupedCorpusName, c, groupedCorpusName, c))
 		if err != nil {
 			return err
 		}
-		log.Printf("Created custom index %s_%s_idx on %s_liveattrs_entry(%s)",
+		log.Printf("Created custom index `%s_%s_idx` on `%s_liveattrs_entry`(%s)",
 			groupedCorpusName, c, groupedCorpusName, c)
 	}
 	return nil
