@@ -17,7 +17,7 @@
 package modders
 
 import (
-	"log"
+	"github.com/rs/zerolog/log"
 )
 
 // Modder represents a type which is able

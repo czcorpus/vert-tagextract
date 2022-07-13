@@ -18,10 +18,11 @@ package proc
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 	"plugin"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/czcorpus/vert-tagextract/v2/fs"
 	"github.com/tomachalek/vertigo/v5"

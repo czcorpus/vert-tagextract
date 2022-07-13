@@ -20,12 +20,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/czcorpus/vert-tagextract/v2/cnf"
 	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
@@ -53,7 +55,7 @@ func dumpNewConf() {
 	conf.SelfJoin.ArgColumns = []string{}
 	b, err := json.MarshalIndent(conf, "", "  ")
 	if err != nil {
-		log.Fatalf("Failed to dump a new config: %s", err)
+		log.Fatal().Err(err).Msg("Failed to dump a new config")
 	}
 	fmt.Print(string(b))
 	fmt.Println()
@@ -62,7 +64,7 @@ func dumpNewConf() {
 func exportData(confPath string, appendData bool) {
 	conf, err := cnf.LoadConf(confPath)
 	if err != nil {
-		log.Fatal("FATAL: ", err)
+		log.Fatal().Err(err).Msg("")
 	}
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
@@ -71,7 +73,7 @@ func exportData(confPath string, appendData bool) {
 	t0 := time.Now()
 	statusChan, err := library.ExtractData(conf, appendData, signalChan)
 	if err != nil {
-		log.Fatal("FATAL: ", err)
+		log.Fatal().Err(err).Msg("")
 	}
 	for status := range statusChan {
 		if status.Error != nil {
@@ -81,12 +83,26 @@ func exportData(confPath string, appendData bool) {
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
 
+func setupLog(jsonLog bool) {
+	if !jsonLog {
+		log.Logger = log.Output(
+			zerolog.ConsoleWriter{
+				Out:        os.Stderr,
+				TimeFormat: time.RFC3339,
+			},
+		)
+	}
+}
+
 func main() {
 	flag.Usage = func() {
-		fmt.Println("\n+-------------------------------------------------------------+")
+		var verStr strings.Builder
+		baseHdrRow := "+-------------------------------------------------------------+"
+		verStr.WriteString(version)
+		fmt.Printf("\n%s\n", baseHdrRow)
 		fmt.Println("| Vert-tagextract (vte) - a program for extracting text types |")
 		fmt.Println("|       and pos. attributes  from a corpus vertical file      |")
-		fmt.Printf("|                       version %s                         |\n", version)
+		fmt.Printf("|                       version %s|\n", &verStr)
 		fmt.Println("|          (c) Institute of the Czech National Corpus         |")
 		fmt.Println("|         (c) Tomas Machalek tomas.machalek@ff.cuni.cz        |")
 		fmt.Println("+-------------------------------------------------------------+")
@@ -98,38 +114,64 @@ func main() {
 		fmt.Println("vte template\n\t(create a half empty sample config and write it to stdout)")
 		fmt.Println("\n(config file should be named after a respective corpus name, e.g. syn_v4.json)")
 		fmt.Println("vte version\n\tshow detailed version information")
-
-		fmt.Println("\nOptions:")
-		flag.PrintDefaults()
-	}
-
-	createCommand := flag.NewFlagSet("create", flag.ExitOnError)
-	createCommand.Usage = func() {
-		fmt.Println("Usage: vte create conf.json")
-	}
-	appendCommand := flag.NewFlagSet("append", flag.ExitOnError)
-	appendCommand.Usage = func() {
-		fmt.Println("Usage: vte append conf.json")
-	}
-	templateCommand := flag.NewFlagSet("template", flag.ExitOnError)
-	templateCommand.Usage = func() {
-		fmt.Println("Usage: vte template [> conf.json]")
 	}
 	flag.Parse()
+	var jsonLog bool
 
+	createCommand := flag.NewFlagSet("create", flag.ExitOnError)
+	createCommand.BoolVar(&jsonLog, "json-log", false, "set JSON logging format")
+	createCommand.Usage = func() {
+		fmt.Println("Usage: vte create conf.json")
+		fmt.Println("\nOptions:")
+		createCommand.PrintDefaults()
+	}
+	appendCommand := flag.NewFlagSet("append", flag.ExitOnError)
+	appendCommand.BoolVar(&jsonLog, "json-log", false, "set JSON logging format")
+	appendCommand.Usage = func() {
+		fmt.Println("Usage: vte append conf.json")
+		fmt.Println("\nOptions:")
+		createCommand.PrintDefaults()
+	}
+	templateCommand := flag.NewFlagSet("template", flag.ExitOnError)
+	templateCommand.BoolVar(&jsonLog, "json-log", false, "set JSON logging format")
+	templateCommand.Usage = func() {
+		fmt.Println("Usage: vte template [> conf.json]")
+		fmt.Println("\nOptions:")
+		createCommand.PrintDefaults()
+	}
+
+	if len(os.Args) < 2 {
+		fmt.Println("Action not specified")
+		os.Exit(2)
+	}
 	switch os.Args[1] {
 	case "create":
+		if len(os.Args) < 3 {
+			fmt.Println("Missing argument")
+			os.Exit(3)
+		}
 		createCommand.Parse(os.Args[2:])
+		setupLog(jsonLog)
 		exportData(createCommand.Arg(0), false)
 	case "append":
+		if len(os.Args) < 3 {
+			fmt.Println("Missing argument")
+			os.Exit(3)
+		}
 		appendCommand.Parse(os.Args[2:])
+		setupLog(jsonLog)
 		exportData(appendCommand.Arg(0), true)
 	case "template":
+		if len(os.Args) < 3 {
+			fmt.Println("Missing argument")
+			os.Exit(3)
+		}
 		templateCommand.Parse(os.Args[2:])
+		setupLog(jsonLog)
 		dumpNewConf()
 	case "version":
 		fmt.Printf("vert-tagextract %s\nbuild date: %s\nlast commit: %s\n", version, build, gitCommit)
 	default:
-		log.Fatalf("Unknown command '%s'", flag.Arg(0))
+		log.Fatal().Msgf("Unknown command: %s", flag.Arg(0))
 	}
 }
