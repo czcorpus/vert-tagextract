@@ -18,8 +18,9 @@ package ptcount
 
 import (
 	"fmt"
-	"log"
 	"math"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/czcorpus/vert-tagextract/v2/cnf"
 	"github.com/czcorpus/vert-tagextract/v2/ptcount/modders"

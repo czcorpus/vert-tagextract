@@ -87,3 +87,18 @@ func ListFilesInDir(path string) ([]string, error) {
 	}
 	return ans, nil
 }
+
+// FileSize returns file size in bytes.
+// In case something is wrong, -1 is returned.
+func FileSize(path string) int64 {
+	f, err := os.Open(path)
+	if err != nil {
+		return -1
+	}
+	defer f.Close()
+	finfo, err := f.Stat()
+	if err != nil {
+		return -1
+	}
+	return finfo.Size()
+}

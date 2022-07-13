@@ -78,6 +78,8 @@ type VTEConf struct {
 	BibView     db.BibViewConf  `json:"bibView"`
 
 	Filter FilterConf `json:"filter"`
+
+	Verbosity int `json:"verbosity"`
 }
 
 func (c *VTEConf) HasConfiguredFilter() bool {

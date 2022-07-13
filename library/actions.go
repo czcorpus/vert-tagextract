@@ -18,11 +18,12 @@ package library
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/czcorpus/vert-tagextract/v2/cnf"
 	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
@@ -39,6 +40,24 @@ func sendErrStatus(statusChan chan proc.Status, file string, err error) {
 		File:     file,
 		Error:    err,
 	}
+}
+
+// determineLineReportingStep
+// note: the numbers 0.02, 20 are just rough empirical values to determine
+// number of lines based on "average" CNC corpus
+func determineLineReportingStep(filePath string) int {
+	size := fs.FileSize(filePath)
+	tmp := float64(size) * 0.02
+	if strings.HasSuffix(filePath, ".gz") || strings.HasSuffix(filePath, ".tgz") {
+		tmp *= 20
+	}
+	step := 100
+	for ; step < 1000000000; step *= 10 {
+		if float64(size)/float64(step) < 10 {
+			break
+		}
+	}
+	return step
 }
 
 // ExtractData extracts structural and/or positional attributes from a vertical file
@@ -91,13 +110,13 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 			sendErrStatus(statusChan, "", err)
 			return
 		}
-
 		for _, verticalFile := range filesToProc {
 			log.Printf("Processing vertical %s", verticalFile)
 			parserConf := &vertigo.ParserConf{
 				InputFilePath:         verticalFile,
 				StructAttrAccumulator: "nil",
 				Encoding:              conf.Encoding,
+				LogProgressEachNth:    determineLineReportingStep(verticalFile),
 			}
 
 			var fn colgen.AlignedColGenFn

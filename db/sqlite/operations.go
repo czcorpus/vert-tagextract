@@ -25,8 +25,9 @@ liveattrs (tables and their indices, views)
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/czcorpus/vert-tagextract/v2/db"
 
