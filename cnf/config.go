@@ -42,6 +42,16 @@ type NgramConf struct {
 	CalcARF        bool     `json:"calcARF"`
 }
 
+func (nc *NgramConf) MaxRequiredColumn() int {
+	ans := 0
+	for _, c := range nc.AttrColumns {
+		if c > ans {
+			ans = c
+		}
+	}
+	return ans
+}
+
 // VTEConf holds configuration for a concrete
 // data extraction task.
 type VTEConf struct {

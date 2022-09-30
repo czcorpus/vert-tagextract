@@ -182,10 +182,10 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
 
-		attributes := make([]int, len(tte.ngramConf.AttrColumns))
+		attributes := make([]int, tte.ngramConf.MaxRequiredColumn()+1)
 		for i, idx := range tte.ngramConf.AttrColumns {
 			v := tk.PosAttrByIndex(idx)
-			attributes[i] = tte.valueDict.Add(tte.columnModders[i].Mod(v))
+			attributes[idx] = tte.valueDict.Add(tte.columnModders[i].Mod(v))
 		}
 
 		tte.currSentence = append(tte.currSentence, attributes)
@@ -397,19 +397,31 @@ func (tte *TTExtractor) insertCounts() error {
 			return fmt.Errorf("received stop signal: %s", s)
 		default:
 		}
-		args := make([]interface{}, count.Width()+3)
-		count.ForEachAttr(tte.valueDict, func(v string, i int) {
-			args[i] = v
-		})
-		args[count.Width()] = tte.corpusID
-		args[count.Width()+1] = count.Count()
+		args := make([]interface{}, len(tte.ngramConf.AttrColumns)+3)
+		count.ForEachAttrAcc(
+			tte.valueDict,
+			func(attColIdx int, v string, i int) int {
+				if i == tte.ngramConf.AttrColumns[attColIdx] {
+					args[attColIdx] = v
+					return attColIdx + 1
+				}
+				return attColIdx
+			},
+			0,
+		)
+		numCol := len(tte.ngramConf.AttrColumns)
+		args[numCol] = tte.corpusID
+		args[len(tte.ngramConf.AttrColumns)+1] = count.Count()
 		if count.HasARF() {
-			args[count.Width()+2] = count.ARF().ARF
+			args[numCol+2] = count.ARF().ARF
 
 		} else {
-			args[count.Width()+2] = -1
+			args[numCol+2] = -1
 		}
-		ins.Exec(args...)
+		err = ins.Exec(args...)
+		if err != nil {
+			return err
+		}
 
 		if i > 0 && i%1000 == 0 {
 			tte.statusChan <- Status{

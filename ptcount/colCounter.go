@@ -23,7 +23,8 @@ import (
 )
 
 // Position specifies positional attributes
-// (e.g. word, lemma, tag) at some n-gram position
+// (e.g. word, lemma, tag) at some n-gram position.
+// I.e. it can be seen as a multi-attribute token.
 type Position struct {
 	Columns []int
 }
@@ -46,16 +47,6 @@ func (c *NgramCounter) Length() int {
 // first position filled-in then the returned value is 1)
 func (c *NgramCounter) CurrLength() int {
 	return len(c.tokens)
-}
-
-// Width says how many columns are used for
-// unique records in the result
-// (e.g. [word, lemma, pos] means width of 3)
-func (c *NgramCounter) Width() int {
-	if len(c.tokens) > 0 {
-		return len(c.tokens[0].Columns)
-	}
-	return 0
 }
 
 // HasARF tests whether ARF calculation
@@ -111,6 +102,27 @@ func (c *NgramCounter) ForEachAttr(wDict *WordDict, fn func(item string, i int))
 	} else if len(c.tokens) > 1 {
 		for i := range c.tokens[0].Columns {
 			fn(c.columnNgram(i, wDict), i)
+		}
+	}
+}
+
+// ForEachAttr calls the provided function on all
+// of stored columns from vertical file. Compared with
+// ForEachAttr it adds an 'acc' argument similar to
+// array reduce functions. This allows keeping track
+// of a numeric information between calls.
+// (we use it e.g. to selectively obtain some of indices
+// based on an external list of indices)
+func (c *NgramCounter) ForEachAttrAcc(wDict *WordDict, fn func(acc int, item string, i int) int, acc int) {
+	lacc := acc
+	if len(c.tokens) == 1 {
+		for i, v := range c.tokens[0].Columns {
+			lacc = fn(lacc, wDict.Get(v), i)
+		}
+
+	} else if len(c.tokens) > 1 {
+		for i := range c.tokens[0].Columns {
+			lacc = fn(lacc, c.columnNgram(i, wDict), i)
 		}
 	}
 }
