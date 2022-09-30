@@ -154,7 +154,12 @@ func createSchema(
 	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr := database.Exec(
-		fmt.Sprintf("CREATE TABLE `%s_liveattrs_entry` (id INTEGER PRIMARY KEY auto_increment, %s)", groupedCorpusName, joinArgs(allCollsDefs)))
+		fmt.Sprintf(
+			"CREATE TABLE `%s_liveattrs_entry` (id INTEGER PRIMARY KEY auto_increment, %s)",
+			groupedCorpusName,
+			joinArgs(allCollsDefs),
+		),
+	)
 	if dbErr != nil {
 		return fmt.Errorf("failed to create table '%s_liveattrs_entry': %s", groupedCorpusName, dbErr)
 	}
@@ -178,7 +183,7 @@ func createSchema(
 		columns := db.GenerateColCountNames(countColumns)
 		colDefs := db.GenerateColCountNames(countColumns)
 		for i, c := range colDefs {
-			colDefs[i] = c + " VARCHAR(127)"
+			colDefs[i] = c + " VARCHAR(127) COLLATE utf8_bin"
 		}
 		_, dbErr = database.Exec(fmt.Sprintf(
 			"CREATE TABLE %s_colcounts (%s, corpus_id VARCHAR(127), count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
