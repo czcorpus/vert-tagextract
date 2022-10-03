@@ -20,18 +20,18 @@ import "strings"
 
 type ToLower struct{}
 
-func (m ToLower) Mod(s string) string {
+func (m ToLower) Transform(s string) string {
 	return strings.ToLower(s)
 }
 
 type FirstChar struct{}
 
-func (m FirstChar) Mod(s string) string {
+func (m FirstChar) Transform(s string) string {
 	return s[:1]
 }
 
 type Identity struct{}
 
-func (m Identity) Mod(s string) string {
+func (m Identity) Transform(s string) string {
 	return s
 }

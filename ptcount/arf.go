@@ -75,14 +75,14 @@ type ARFCalculator struct {
 	counts        map[string]*NgramCounter
 	currSentence  [][]int
 	numTokens     int
-	columnModders []*modders.ModderChain
+	columnModders []*modders.StringTransformerChain
 	wordDict      *WordDict
 	atomStruct    string
 }
 
 // NewARFCalculator is the recommended factory to create an instance of the type
 func NewARFCalculator(counts map[string]*NgramCounter, ngramConf *cnf.NgramConf, numTokens int,
-	columnModders []*modders.ModderChain, wordDict *WordDict, atomStruct string) *ARFCalculator {
+	columnModders []*modders.StringTransformerChain, wordDict *WordDict, atomStruct string) *ARFCalculator {
 	return &ARFCalculator{
 		numTokens:     numTokens,
 		counts:        counts,
