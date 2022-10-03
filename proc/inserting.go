@@ -73,7 +73,7 @@ type TTExtractor struct {
 	ngramConf          *cnf.NgramConf
 	currSentence       [][]int
 	valueDict          *ptcount.WordDict
-	columnModders      []*modders.ModderChain
+	columnModders      []*modders.StringTransformerChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
 	appendMode         bool
@@ -105,7 +105,7 @@ func NewTTExtractor(
 		colgenFn:         colgenFn,
 		ngramConf:        &conf.Ngrams,
 		colCounts:        make(map[string]*ptcount.NgramCounter),
-		columnModders:    make([]*modders.ModderChain, len(conf.Ngrams.AttrColumns)),
+		columnModders:    make([]*modders.StringTransformerChain, len(conf.Ngrams.AttrColumns)),
 		filter:           filter,
 		maxNumErrors:     conf.MaxNumErrors,
 		currSentence:     make([][]int, 0, 20),
@@ -117,11 +117,11 @@ func NewTTExtractor(
 	for i, m := range conf.Ngrams.ColumnMods {
 		values := strings.Split(m, ":")
 		if len(values) > 0 {
-			mod := make([]modders.Modder, 0, len(values))
+			mod := make([]modders.StringTransformer, 0, len(values))
 			for _, v := range values {
-				mod = append(mod, modders.ModderFactory(v))
+				mod = append(mod, modders.StringTransformerFactory(v))
 			}
-			ans.columnModders[i] = modders.NewModderChain(mod)
+			ans.columnModders[i] = modders.NewStringTransformerChain(mod)
 		}
 	}
 	if conf.StackStructEval {

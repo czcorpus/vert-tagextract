@@ -20,36 +20,43 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Modder represents a type which is able
+const (
+	TransformerToLower   = "toLower"
+	TransformerIdentity  = "identity"
+	TransformerFirstChar = "firstChar"
+)
+
+// StringTransformer represents a type which is able
 // to modify a string (e.g. to take a substring)
-type Modder interface {
-	Mod(s string) string
+type StringTransformer interface {
+	Transform(s string) string
 }
 
-type ModderChain struct {
-	fn []Modder
+type StringTransformerChain struct {
+	fn []StringTransformer
 }
 
-func NewModderChain(fn []Modder) *ModderChain {
-	return &ModderChain{fn: fn}
+func NewStringTransformerChain(fn []StringTransformer) *StringTransformerChain {
+	return &StringTransformerChain{fn: fn}
 }
 
-func (m *ModderChain) Mod(s string) string {
+func (m *StringTransformerChain) Mod(s string) string {
 	ans := s
 	for _, mod := range m.fn {
-		ans = mod.Mod(ans)
+		ans = mod.Transform(ans)
 	}
 	return ans
 }
 
-func ModderFactory(name string) Modder {
-	if name == "toLower" {
-		return ToLower{}
+func StringTransformerFactory(name string) StringTransformer {
+	switch name {
+	case TransformerToLower:
 
-	} else if name == "firstChar" {
+		return ToLower{}
+	case TransformerFirstChar:
 		return FirstChar{}
 
-	} else if name == "" {
+	case "", TransformerIdentity:
 		return Identity{}
 	}
 	log.Printf("WARNING: unknown modder function %s", name)
