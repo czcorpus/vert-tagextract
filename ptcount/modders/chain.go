@@ -17,13 +17,19 @@
 package modders
 
 import (
+	"strings"
+
 	"github.com/rs/zerolog/log"
 )
 
 const (
-	TransformerToLower   = "toLower"
-	TransformerIdentity  = "identity"
-	TransformerFirstChar = "firstChar"
+	TransformerToLower       = "toLower"
+	TransformerIdentity      = "identity"
+	TransformerFirstChar     = "firstChar"
+	TransformerPosPenn       = "penn"
+	TransformerPosCSCNC2020  = "cs_cnc2020"
+	TransformerPosCSCNC2000  = "cs_cnc2000"
+	TransformerPosCNC2000Spk = "cs_cnc2000_spk"
 )
 
 // StringTransformer represents a type which is able
@@ -36,11 +42,19 @@ type StringTransformerChain struct {
 	fn []StringTransformer
 }
 
-func NewStringTransformerChain(fn []StringTransformer) *StringTransformerChain {
-	return &StringTransformerChain{fn: fn}
+func NewStringTransformerChain(specif string) *StringTransformerChain {
+	values := strings.Split(specif, ":")
+	if len(values) > 0 {
+		mod := make([]StringTransformer, 0, len(values))
+		for _, v := range values {
+			mod = append(mod, StringTransformerFactory(v))
+		}
+		return &StringTransformerChain{mod}
+	}
+	return &StringTransformerChain{fn: []StringTransformer{}}
 }
 
-func (m *StringTransformerChain) Mod(s string) string {
+func (m *StringTransformerChain) Transform(s string) string {
 	ans := s
 	for _, mod := range m.fn {
 		ans = mod.Transform(ans)
@@ -51,11 +65,14 @@ func (m *StringTransformerChain) Mod(s string) string {
 func StringTransformerFactory(name string) StringTransformer {
 	switch name {
 	case TransformerToLower:
-
 		return ToLower{}
-	case TransformerFirstChar:
+	case TransformerFirstChar,
+		TransformerPosCSCNC2020,
+		TransformerPosCSCNC2000,
+		TransformerPosCNC2000Spk:
 		return FirstChar{}
-
+	case TransformerPosPenn:
+		return Penn2Pos{}
 	case "", TransformerIdentity:
 		return Identity{}
 	}
