@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -115,14 +114,7 @@ func NewTTExtractor(
 	}
 
 	for i, m := range conf.Ngrams.ColumnMods {
-		values := strings.Split(m, ":")
-		if len(values) > 0 {
-			mod := make([]modders.StringTransformer, 0, len(values))
-			for _, v := range values {
-				mod = append(mod, modders.StringTransformerFactory(v))
-			}
-			ans.columnModders[i] = modders.NewStringTransformerChain(mod)
-		}
+		ans.columnModders[i] = modders.NewStringTransformerChain(m)
 	}
 	if conf.StackStructEval {
 		ans.attrAccum = newStructStack()
@@ -185,7 +177,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 		attributes := make([]int, tte.ngramConf.MaxRequiredColumn()+1)
 		for i, idx := range tte.ngramConf.AttrColumns {
 			v := tk.PosAttrByIndex(idx)
-			attributes[idx] = tte.valueDict.Add(tte.columnModders[i].Mod(v))
+			attributes[idx] = tte.valueDict.Add(tte.columnModders[i].Transform(v))
 		}
 
 		tte.currSentence = append(tte.currSentence, attributes)

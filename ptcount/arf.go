@@ -99,7 +99,7 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) err
 	attributes := make([]int, len(arfc.ngramConf.AttrColumns))
 	for i, idx := range arfc.ngramConf.AttrColumns {
 		v := tk.PosAttrByIndex(idx)
-		attributes[i] = arfc.wordDict.Add(arfc.columnModders[i].Mod(v))
+		attributes[i] = arfc.wordDict.Add(arfc.columnModders[i].Transform(v))
 	}
 
 	arfc.currSentence = append(arfc.currSentence, attributes)
