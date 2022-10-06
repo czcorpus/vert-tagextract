@@ -30,6 +30,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/v2/db/factory"
 	"github.com/czcorpus/vert-tagextract/v2/fs"
 	"github.com/czcorpus/vert-tagextract/v2/proc"
+	"github.com/czcorpus/vert-tagextract/v2/validation"
 
 	"github.com/tomachalek/vertigo/v5"
 )
@@ -165,4 +166,30 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	}()
 
 	return statusChan, nil
+}
+
+func ValidateData(conf *cnf.VTEConf, stopChan <-chan os.Signal) error {
+	filesToProc, err := GetVerticalFiles(conf)
+	if err != nil {
+		return err
+	}
+	for _, verticalFile := range filesToProc {
+		log.Printf("Processing vertical %s", verticalFile)
+		parserConf := &vertigo.ParserConf{
+			InputFilePath:         verticalFile,
+			StructAttrAccumulator: "nil",
+			Encoding:              conf.Encoding,
+			LogProgressEachNth:    determineLineReportingStep(verticalFile),
+		}
+		vv, err := validation.NewVertValidator(filesToProc, stopChan)
+		if err != nil {
+			return err
+		}
+		err = vv.Run(parserConf)
+		if err != nil {
+			return err
+		}
+	}
+	log.Printf("Validation complete")
+	return nil
 }

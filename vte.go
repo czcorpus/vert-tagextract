@@ -32,7 +32,6 @@ import (
 	"github.com/czcorpus/vert-tagextract/v2/cnf"
 	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
 	"github.com/czcorpus/vert-tagextract/v2/library"
-	"github.com/czcorpus/vert-tagextract/v2/validation"
 
 	"github.com/tomachalek/vertigo/v5"
 )
@@ -80,6 +79,23 @@ func exportData(confPath string, appendData bool) {
 		if status.Error != nil {
 			log.Print("ERROR: ", status.Error)
 		}
+	}
+	log.Printf("Finished in %s.\n", time.Since(t0))
+}
+
+func validateData(confPath string) {
+	conf, err := cnf.LoadConf(confPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+	signal.Notify(signalChan, syscall.SIGTERM)
+
+	t0 := time.Now()
+	err = library.ValidateData(conf, signalChan)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
 	}
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
@@ -185,10 +201,7 @@ func main() {
 		}
 		validateCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
-		err := validation.ValidateVertical(validateCommand.Arg(0))
-		if err != nil {
-			log.Fatal().Err(err).Msg("Validation failed")
-		}
+		validateData(validateCommand.Arg(0))
 	case "version":
 		fmt.Printf("vert-tagextract %s\nbuild date: %s\nlast commit: %s\n", version, build, gitCommit)
 	default:
