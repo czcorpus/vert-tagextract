@@ -60,22 +60,7 @@ func determineLineReportingStep(filePath string) int {
 	return step
 }
 
-// ExtractData extracts structural and/or positional attributes from a vertical file
-// based on the specification in the 'conf' argument.
-// The 'stopChan' can be used to handle calling service shutdown.
-// The 'statusChan' is for getting extraction status information including possible errors
-func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
-	statusChan := make(chan proc.Status)
-	dbWriter, err := factory.NewDatabaseWriter(conf)
-	if err != nil {
-		return nil, err
-	}
-	dbExisted := dbWriter.DatabaseExists()
-	if !dbExisted && appendData {
-		err := fmt.Errorf("update flag is set but the database %s does not exist", conf.DB.Name)
-		return nil, err
-	}
-
+func GetVerticalFiles(conf *cnf.VTEConf) ([]string, error) {
 	var filesToProc []string
 
 	if conf.VerticalFile != "" && len(conf.VerticalFiles) > 0 {
@@ -98,6 +83,28 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
 	}
 
+	return filesToProc, nil
+}
+
+// ExtractData extracts structural and/or positional attributes from a vertical file
+// based on the specification in the 'conf' argument.
+// The 'stopChan' can be used to handle calling service shutdown.
+// The 'statusChan' is for getting extraction status information including possible errors
+func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
+	statusChan := make(chan proc.Status)
+	dbWriter, err := factory.NewDatabaseWriter(conf)
+	if err != nil {
+		return nil, err
+	}
+	dbExisted := dbWriter.DatabaseExists()
+	if !dbExisted && appendData {
+		err := fmt.Errorf("update flag is set but the database %s does not exist", conf.DB.Name)
+		return nil, err
+	}
+	filesToProc, err := GetVerticalFiles(conf)
+	if err != nil {
+		return nil, err
+	}
 	go func() {
 		defer dbWriter.Close()
 		defer close(statusChan)
