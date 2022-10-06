@@ -30,7 +30,6 @@ import (
 type Status struct {
 	Datetime       time.Time
 	File           string
-	ProcessedAtoms int
 	ProcessedLines int
 	Error          error
 }
@@ -42,6 +41,7 @@ type VertValidator struct {
 	openStructs []*vertigo.Structure
 	strict      bool
 	stopChan    <-chan os.Signal
+	statusChan  chan<- Status
 }
 
 // NewVertValidator is a factory function to
@@ -50,14 +50,25 @@ func NewVertValidator(
 	vertPaths []string,
 	strict bool,
 	stopChan <-chan os.Signal,
+	statusChan chan<- Status,
 ) (*VertValidator, error) {
 	ans := &VertValidator{
 		vertPaths:   vertPaths,
 		openStructs: make([]*vertigo.Structure, 0, 20),
 		strict:      strict,
 		stopChan:    stopChan,
+		statusChan:  statusChan,
 	}
 	return ans, nil
+}
+
+func (vv *VertValidator) sendLineStatus(line int) {
+	if line%1000 == 0 {
+		vv.statusChan <- Status{
+			Datetime:       time.Now(),
+			ProcessedLines: line,
+		}
+	}
 }
 
 // ProcToken is a part of vertigo.LineProcessor implementation.
@@ -68,6 +79,7 @@ func (vv *VertValidator) ProcToken(tk *vertigo.Token, line int, err error) error
 		return fmt.Errorf("received stop signal: %s", s)
 	default:
 	}
+	vv.sendLineStatus(line)
 	return nil
 }
 
@@ -91,6 +103,7 @@ func (vv *VertValidator) ProcStruct(st *vertigo.Structure, line int, err error) 
 		}
 		vv.openStructs = append(vv.openStructs, st)
 	}
+	vv.sendLineStatus(line)
 	return nil
 }
 
@@ -131,7 +144,7 @@ func (vv *VertValidator) ProcStructClose(st *vertigo.StructureClose, line int, e
 			}
 		}
 	}
-
+	vv.sendLineStatus(line)
 	return nil
 }
 
@@ -141,7 +154,7 @@ func (vv *VertValidator) Run(conf *vertigo.ParserConf) error {
 	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
 	parserErr := vertigo.ParseVerticalFile(conf, vv)
 	if parserErr != nil {
-		return fmt.Errorf("failed to parse vertical file: %s", parserErr)
+		return fmt.Errorf("failed to validate vertical file: %s", parserErr)
 	}
 	return nil
 }

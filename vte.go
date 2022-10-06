@@ -93,9 +93,14 @@ func validateData(confPath string, strict bool) {
 	signal.Notify(signalChan, syscall.SIGTERM)
 
 	t0 := time.Now()
-	err = library.ValidateData(conf, strict, signalChan)
+	statusChan, err := library.ValidateData(conf, strict, signalChan)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
+	}
+	for status := range statusChan {
+		if status.Error != nil {
+			log.Fatal().Err(status.Error).Msgf("in file: %s", status.File)
+		}
 	}
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
@@ -199,7 +204,7 @@ func main() {
 			fmt.Println("Missing argument")
 			os.Exit(3)
 		}
-		strict := validateCommand.Bool("strict", false, "set strict mode")
+		strict := validateCommand.Bool("strict", false, "set strict mode (close tags has to correspond to last open tag)")
 		validateCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
 		validateData(validateCommand.Arg(0), *strict)

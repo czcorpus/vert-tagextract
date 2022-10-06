@@ -168,28 +168,44 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	return statusChan, nil
 }
 
-func ValidateData(conf *cnf.VTEConf, strict bool, stopChan <-chan os.Signal) error {
+func sendValidationErrStatus(statusChan chan validation.Status, file string, err error) {
+	statusChan <- validation.Status{
+		Datetime: time.Now(),
+		File:     file,
+		Error:    err,
+	}
+}
+
+func ValidateData(conf *cnf.VTEConf, strict bool, stopChan <-chan os.Signal) (chan validation.Status, error) {
 	filesToProc, err := GetVerticalFiles(conf)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for _, verticalFile := range filesToProc {
-		log.Printf("Processing vertical %s", verticalFile)
-		parserConf := &vertigo.ParserConf{
-			InputFilePath:         verticalFile,
-			StructAttrAccumulator: "nil",
-			Encoding:              conf.Encoding,
-			LogProgressEachNth:    determineLineReportingStep(verticalFile),
+	statusChan := make(chan validation.Status)
+	go func() {
+		defer close(statusChan)
+
+		for _, verticalFile := range filesToProc {
+			log.Printf("Processing vertical %s", verticalFile)
+			parserConf := &vertigo.ParserConf{
+				InputFilePath:         verticalFile,
+				StructAttrAccumulator: "nil",
+				Encoding:              conf.Encoding,
+				LogProgressEachNth:    determineLineReportingStep(verticalFile),
+			}
+			vv, err := validation.NewVertValidator(filesToProc, strict, stopChan, statusChan)
+			if err != nil {
+				sendValidationErrStatus(statusChan, verticalFile, err)
+				return
+			}
+			err = vv.Run(parserConf)
+			if err != nil {
+				sendValidationErrStatus(statusChan, verticalFile, err)
+				return
+			}
 		}
-		vv, err := validation.NewVertValidator(filesToProc, strict, stopChan)
-		if err != nil {
-			return err
-		}
-		err = vv.Run(parserConf)
-		if err != nil {
-			return err
-		}
-	}
-	log.Printf("Validation complete")
-	return nil
+		log.Printf("Validation complete")
+	}()
+
+	return statusChan, nil
 }
