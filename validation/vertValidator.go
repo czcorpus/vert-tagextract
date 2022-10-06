@@ -40,6 +40,7 @@ type Status struct {
 type VertValidator struct {
 	vertPaths   []string
 	openStructs []*vertigo.Structure
+	strict      bool
 	stopChan    <-chan os.Signal
 }
 
@@ -47,11 +48,13 @@ type VertValidator struct {
 // instantiate proper VertValidator.
 func NewVertValidator(
 	vertPaths []string,
+	strict bool,
 	stopChan <-chan os.Signal,
 ) (*VertValidator, error) {
 	ans := &VertValidator{
 		vertPaths:   vertPaths,
 		openStructs: make([]*vertigo.Structure, 0, 20),
+		strict:      strict,
 		stopChan:    stopChan,
 	}
 	return ans, nil
@@ -83,7 +86,7 @@ func (vv *VertValidator) ProcStruct(st *vertigo.Structure, line int, err error) 
 	if !st.IsEmpty {
 		for _, v := range vv.openStructs {
 			if v.Name == st.Name {
-				return fmt.Errorf("elements can not contain itself, structure %s is already opened on line %d", st.Name, line)
+				return fmt.Errorf("elements can not contain itself on line %d, structure %s is already opened", line, st.Name)
 			}
 		}
 		vv.openStructs = append(vv.openStructs, st)
@@ -103,10 +106,30 @@ func (vv *VertValidator) ProcStructClose(st *vertigo.StructureClose, line int, e
 	if err != nil {
 		return err
 	}
-	if st.Name == vv.openStructs[len(vv.openStructs)-1].Name {
-		vv.openStructs = vv.openStructs[:len(vv.openStructs)-1]
+
+	if vv.strict {
+		// closing tag should correspond to last opened tag in stack
+		if st.Name == vv.openStructs[len(vv.openStructs)-1].Name {
+			vv.openStructs = vv.openStructs[:len(vv.openStructs)-1]
+		} else {
+			return fmt.Errorf("invalid closing element `%s` on line %d, expecting element `%s`", st.Name, line, vv.openStructs[len(vv.openStructs)-1].Name)
+		}
+
 	} else {
-		return fmt.Errorf("invalid closing element `%s` on line %d, expecting element `%s`", st.Name, line, vv.openStructs[len(vv.openStructs)-1].Name)
+		// opening tag should be somewhere in the stack
+		// all opened elements after it will be discarded
+		i := len(vv.openStructs) - 1
+		for i >= 0 {
+			if vv.openStructs[i].Name == st.Name {
+				vv.openStructs = vv.openStructs[:i]
+				break
+			}
+			if i > 0 {
+				i--
+			} else {
+				return fmt.Errorf("missing opening tag for element `%s` on line %d", st.Name, line)
+			}
+		}
 	}
 
 	return nil

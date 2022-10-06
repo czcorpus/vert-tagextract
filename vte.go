@@ -83,7 +83,7 @@ func exportData(confPath string, appendData bool) {
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
 
-func validateData(confPath string) {
+func validateData(confPath string, strict bool) {
 	conf, err := cnf.LoadConf(confPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
@@ -93,7 +93,7 @@ func validateData(confPath string) {
 	signal.Notify(signalChan, syscall.SIGTERM)
 
 	t0 := time.Now()
-	err = library.ValidateData(conf, signalChan)
+	err = library.ValidateData(conf, strict, signalChan)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
 	}
@@ -160,7 +160,7 @@ func main() {
 	validateCommand := flag.NewFlagSet("validate", flag.ExitOnError)
 	validateCommand.BoolVar(&jsonLog, "json-log", false, "set JSON logging format")
 	validateCommand.Usage = func() {
-		fmt.Println("Usage: vte validate data.vert")
+		fmt.Println("Usage: vte validate conf.json")
 		fmt.Println("\nOptions:")
 		createCommand.PrintDefaults()
 	}
@@ -199,9 +199,10 @@ func main() {
 			fmt.Println("Missing argument")
 			os.Exit(3)
 		}
+		strict := validateCommand.Bool("strict", false, "set strict mode")
 		validateCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
-		validateData(validateCommand.Arg(0))
+		validateData(validateCommand.Arg(0), *strict)
 	case "version":
 		fmt.Printf("vert-tagextract %s\nbuild date: %s\nlast commit: %s\n", version, build, gitCommit)
 	default:

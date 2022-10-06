@@ -168,7 +168,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	return statusChan, nil
 }
 
-func ValidateData(conf *cnf.VTEConf, stopChan <-chan os.Signal) error {
+func ValidateData(conf *cnf.VTEConf, strict bool, stopChan <-chan os.Signal) error {
 	filesToProc, err := GetVerticalFiles(conf)
 	if err != nil {
 		return err
@@ -181,7 +181,7 @@ func ValidateData(conf *cnf.VTEConf, stopChan <-chan os.Signal) error {
 			Encoding:              conf.Encoding,
 			LogProgressEachNth:    determineLineReportingStep(verticalFile),
 		}
-		vv, err := validation.NewVertValidator(filesToProc, stopChan)
+		vv, err := validation.NewVertValidator(filesToProc, strict, stopChan)
 		if err != nil {
 			return err
 		}
