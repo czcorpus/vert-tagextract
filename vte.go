@@ -83,6 +83,28 @@ func exportData(confPath string, appendData bool) {
 	log.Printf("Finished in %s.\n", time.Since(t0))
 }
 
+func validateData(confPath string, strict bool) {
+	conf, err := cnf.LoadConf(confPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+	signal.Notify(signalChan, syscall.SIGTERM)
+
+	t0 := time.Now()
+	statusChan, err := library.ValidateData(conf, strict, signalChan)
+	if err != nil {
+		log.Fatal().Err(err).Msg("")
+	}
+	for status := range statusChan {
+		if status.Error != nil {
+			log.Fatal().Err(status.Error).Msgf("in file: %s", status.File)
+		}
+	}
+	log.Printf("Finished in %s.\n", time.Since(t0))
+}
+
 func setupLog(jsonLog bool) {
 	if !jsonLog {
 		log.Logger = log.Output(
@@ -113,6 +135,7 @@ func main() {
 		fmt.Println("vte append config.json\n\t(run an export configured in config.json, add data to an existing database)")
 		fmt.Println("vte template\n\t(create a half empty sample config and write it to stdout)")
 		fmt.Println("\n(config file should be named after a respective corpus name, e.g. syn_v4.json)")
+		fmt.Println("vte validate\n\t(validate vertical structure)")
 		fmt.Println("vte version\n\tshow detailed version information")
 	}
 	flag.Parse()
@@ -136,6 +159,13 @@ func main() {
 	templateCommand.BoolVar(&jsonLog, "json-log", false, "set JSON logging format")
 	templateCommand.Usage = func() {
 		fmt.Println("Usage: vte template [> conf.json]")
+		fmt.Println("\nOptions:")
+		createCommand.PrintDefaults()
+	}
+	validateCommand := flag.NewFlagSet("validate", flag.ExitOnError)
+	validateCommand.BoolVar(&jsonLog, "json-log", false, "set JSON logging format")
+	validateCommand.Usage = func() {
+		fmt.Println("Usage: vte validate conf.json")
 		fmt.Println("\nOptions:")
 		createCommand.PrintDefaults()
 	}
@@ -169,6 +199,15 @@ func main() {
 		templateCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
 		dumpNewConf()
+	case "validate":
+		if len(os.Args) < 3 {
+			fmt.Println("Missing argument")
+			os.Exit(3)
+		}
+		strict := validateCommand.Bool("strict", false, "set strict mode (close tags has to correspond to last open tag)")
+		validateCommand.Parse(os.Args[2:])
+		setupLog(jsonLog)
+		validateData(validateCommand.Arg(0), *strict)
 	case "version":
 		fmt.Printf("vert-tagextract %s\nbuild date: %s\nlast commit: %s\n", version, build, gitCommit)
 	default:

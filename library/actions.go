@@ -30,6 +30,7 @@ import (
 	"github.com/czcorpus/vert-tagextract/v2/db/factory"
 	"github.com/czcorpus/vert-tagextract/v2/fs"
 	"github.com/czcorpus/vert-tagextract/v2/proc"
+	"github.com/czcorpus/vert-tagextract/v2/validation"
 
 	"github.com/tomachalek/vertigo/v5"
 )
@@ -60,22 +61,7 @@ func determineLineReportingStep(filePath string) int {
 	return step
 }
 
-// ExtractData extracts structural and/or positional attributes from a vertical file
-// based on the specification in the 'conf' argument.
-// The 'stopChan' can be used to handle calling service shutdown.
-// The 'statusChan' is for getting extraction status information including possible errors
-func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
-	statusChan := make(chan proc.Status)
-	dbWriter, err := factory.NewDatabaseWriter(conf)
-	if err != nil {
-		return nil, err
-	}
-	dbExisted := dbWriter.DatabaseExists()
-	if !dbExisted && appendData {
-		err := fmt.Errorf("update flag is set but the database %s does not exist", conf.DB.Name)
-		return nil, err
-	}
-
+func GetVerticalFiles(conf *cnf.VTEConf) ([]string, error) {
 	var filesToProc []string
 
 	if conf.VerticalFile != "" && len(conf.VerticalFiles) > 0 {
@@ -98,6 +84,28 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
 	}
 
+	return filesToProc, nil
+}
+
+// ExtractData extracts structural and/or positional attributes from a vertical file
+// based on the specification in the 'conf' argument.
+// The 'stopChan' can be used to handle calling service shutdown.
+// The 'statusChan' is for getting extraction status information including possible errors
+func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
+	statusChan := make(chan proc.Status)
+	dbWriter, err := factory.NewDatabaseWriter(conf)
+	if err != nil {
+		return nil, err
+	}
+	dbExisted := dbWriter.DatabaseExists()
+	if !dbExisted && appendData {
+		err := fmt.Errorf("update flag is set but the database %s does not exist", conf.DB.Name)
+		return nil, err
+	}
+	filesToProc, err := GetVerticalFiles(conf)
+	if err != nil {
+		return nil, err
+	}
 	go func() {
 		defer dbWriter.Close()
 		defer close(statusChan)
@@ -155,6 +163,48 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 			sendErrStatus(statusChan, "", err)
 		}
 		log.Print("...DONE")
+	}()
+
+	return statusChan, nil
+}
+
+func sendValidationErrStatus(statusChan chan validation.Status, file string, err error) {
+	statusChan <- validation.Status{
+		Datetime: time.Now(),
+		File:     file,
+		Error:    err,
+	}
+}
+
+func ValidateData(conf *cnf.VTEConf, strict bool, stopChan <-chan os.Signal) (chan validation.Status, error) {
+	filesToProc, err := GetVerticalFiles(conf)
+	if err != nil {
+		return nil, err
+	}
+	statusChan := make(chan validation.Status)
+	go func() {
+		defer close(statusChan)
+
+		for _, verticalFile := range filesToProc {
+			log.Printf("Processing vertical %s", verticalFile)
+			parserConf := &vertigo.ParserConf{
+				InputFilePath:         verticalFile,
+				StructAttrAccumulator: "nil",
+				Encoding:              conf.Encoding,
+				LogProgressEachNth:    determineLineReportingStep(verticalFile),
+			}
+			vv, err := validation.NewVertValidator(filesToProc, strict, stopChan, statusChan)
+			if err != nil {
+				sendValidationErrStatus(statusChan, verticalFile, err)
+				return
+			}
+			err = vv.Run(parserConf)
+			if err != nil {
+				sendValidationErrStatus(statusChan, verticalFile, err)
+				return
+			}
+		}
+		log.Printf("Validation complete")
 	}()
 
 	return statusChan, nil
