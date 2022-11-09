@@ -26,6 +26,10 @@ import (
 	"github.com/czcorpus/vert-tagextract/v2/db"
 )
 
+const (
+	laTableSuffix = "_liveattrs_entry"
+)
+
 // dropExisting drops existing tables/views.
 // It is safe to call this even if one or more of these does not exist.
 // Please note that the groupedCorpusName argument represents a derived corpus name
@@ -43,9 +47,10 @@ func dropExisting(database *sql.DB, groupedCorpusName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop view `%s_bibliography`: %s", groupedCorpusName, err)
 	}
-	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s_liveattrs_entry`", groupedCorpusName))
+	_, err = database.Exec(
+		fmt.Sprintf("DROP TABLE IF EXISTS `%s%s`", groupedCorpusName, laTableSuffix))
 	if err != nil {
-		return fmt.Errorf("failed to drop table '%s_liveattrs_entry': %s", groupedCorpusName, err)
+		return fmt.Errorf("failed to drop table '%s%s': %s", groupedCorpusName, laTableSuffix, err)
 	}
 	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s_colcounts`", groupedCorpusName))
 	if err != nil {
@@ -96,13 +101,13 @@ func createAuxIndices(database *sql.DB, groupedCorpusName string, cols []string)
 	var err error
 	for _, c := range cols {
 		_, err = database.Exec(
-			fmt.Sprintf("CREATE INDEX `%s_%s_idx` ON `%s_liveattrs_entry`(%s)",
-				groupedCorpusName, c, groupedCorpusName, c))
+			fmt.Sprintf("CREATE INDEX `%s_%s_idx` ON `%s%s`(%s)",
+				groupedCorpusName, c, groupedCorpusName, laTableSuffix, c))
 		if err != nil {
 			return err
 		}
-		log.Printf("Created custom index `%s_%s_idx` on `%s_liveattrs_entry`(%s)",
-			groupedCorpusName, c, groupedCorpusName, c)
+		log.Printf("Created custom index `%s_%s_idx` on `%s%s`(%s)",
+			groupedCorpusName, c, groupedCorpusName, laTableSuffix, c)
 	}
 	return nil
 }
@@ -127,8 +132,8 @@ func generateViewColDefs(cols []string, idAttr string) []string {
 func createBibView(database *sql.DB, groupedCorpusName string, cols []string, idAttr string) error {
 	colDefs := generateViewColDefs(cols, idAttr)
 	_, err := database.Exec(fmt.Sprintf(
-		"CREATE VIEW %s_bibliography AS SELECT %s FROM `%s_liveattrs_entry`",
-		groupedCorpusName, joinArgs(colDefs), groupedCorpusName))
+		"CREATE VIEW %s_bibliography AS SELECT %s FROM `%s%s`",
+		groupedCorpusName, joinArgs(colDefs), groupedCorpusName, laTableSuffix))
 	if err != nil {
 		return err
 	}
@@ -155,23 +160,25 @@ func createSchema(
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr := database.Exec(
 		fmt.Sprintf(
-			"CREATE TABLE `%s_liveattrs_entry` (id INTEGER PRIMARY KEY auto_increment, %s)",
+			"CREATE TABLE `%s%s` (id INTEGER PRIMARY KEY auto_increment, %s)",
 			groupedCorpusName,
+			laTableSuffix,
 			joinArgs(allCollsDefs),
 		),
 	)
 	if dbErr != nil {
-		return fmt.Errorf("failed to create table '%s_liveattrs_entry': %s", groupedCorpusName, dbErr)
+		return fmt.Errorf(
+			"failed to create table '%s%s': %s", groupedCorpusName, laTableSuffix, dbErr)
 	}
 
 	if useSelfJoin {
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE UNIQUE INDEX `%s_liveattrs_entry_item_id_corpus_id_idx` ON `%s_liveattrs_entry`(item_id, corpus_id)",
-			groupedCorpusName, groupedCorpusName))
+			"CREATE UNIQUE INDEX `%s%s_item_id_corpus_id_idx` ON `%s%s`(item_id, corpus_id)",
+			groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffix))
 		if dbErr != nil {
 			return fmt.Errorf(
-				"failed to create index `%s_liveattrs_entry_item_id_corpus_id_idx` on `%s_liveattrs_entry`(item_id, corpus_id): %s",
-				groupedCorpusName, groupedCorpusName, dbErr)
+				"failed to create index `%s%s_item_id_corpus_id_idx` on `%s%s`(item_id, corpus_id): %s",
+				groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffix, dbErr)
 		}
 	}
 	dbErr = createAuxIndices(database, groupedCorpusName, indexedCols)
