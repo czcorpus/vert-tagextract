@@ -51,6 +51,7 @@ func (w *Writer) Initialize(appendMode bool) error {
 	if err != nil {
 		return err
 	}
+	log.Info().Msgf("Opened sqlite3 database %s", w.Path)
 
 	if !appendMode {
 		if dbExisted {
