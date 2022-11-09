@@ -74,7 +74,7 @@ func (w *Writer) Initialize(appendMode bool) error {
 		if dbExisted {
 			log.Printf(
 				"The data storage %s/%s already exists. Existing data will be deleted.",
-				w.dbName, w.groupedCorpusName,
+				w.dbName, w.groupedCorpusName+"_liveattrs_entry",
 			)
 			err := dropExisting(w.database, w.groupedCorpusName)
 			if err != nil {
