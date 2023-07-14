@@ -28,7 +28,7 @@ import (
 
 const (
 	laTableSuffix     = "_liveattrs_entry"
-	dfltVarcharColLen = 500
+	dfltVarcharColLen = 1000
 )
 
 // dropExisting drops existing tables/views.
