@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	laTableSuffix = "_liveattrs_entry"
+	laTableSuffix     = "_liveattrs_entry"
+	dfltVarcharColLen = 500
 )
 
 // dropExisting drops existing tables/views.
@@ -154,7 +155,7 @@ func createSchema(
 	cols := generateColNames(structures)
 	colsDefs := make([]string, len(cols))
 	for i, col := range cols {
-		colsDefs[i] = fmt.Sprintf("%s VARCHAR(255)", col)
+		colsDefs[i] = fmt.Sprintf("%s VARCHAR(%d)", col, dfltVarcharColLen)
 	}
 	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
