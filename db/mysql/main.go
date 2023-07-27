@@ -114,7 +114,14 @@ func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation
 		valReplac[i] = "?"
 	}
 	stmt, err := w.tx.Prepare(
-		fmt.Sprintf("INSERT INTO `%s_%s` (%s) VALUES (%s)", w.groupedCorpusName, table, joinArgs(attrs), joinArgs(valReplac)))
+		fmt.Sprintf(
+			"INSERT INTO `%s_%s` (%s) VALUES (%s)",
+			w.groupedCorpusName,
+			table,
+			joinArgs(attrs),
+			joinArgs(valReplac),
+		),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare INSERT: %s", err)
 	}

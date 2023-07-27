@@ -27,8 +27,7 @@ import (
 )
 
 const (
-	laTableSuffix     = "_liveattrs_entry"
-	dfltVarcharColLen = 1000
+	laTableSuffix = "_liveattrs_entry"
 )
 
 // dropExisting drops existing tables/views.
@@ -155,7 +154,7 @@ func createSchema(
 	cols := generateColNames(structures)
 	colsDefs := make([]string, len(cols))
 	for i, col := range cols {
-		colsDefs[i] = fmt.Sprintf("%s VARCHAR(%d)", col, dfltVarcharColLen)
+		colsDefs[i] = fmt.Sprintf("%s VARCHAR(%d)", col, db.DfltLAVarcharSize)
 	}
 	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
@@ -191,11 +190,11 @@ func createSchema(
 		columns := db.GenerateColCountNames(countColumns)
 		colDefs := db.GenerateColCountNames(countColumns)
 		for i, c := range colDefs {
-			colDefs[i] = c + " VARCHAR(500) COLLATE utf8_bin"
+			colDefs[i] = c + fmt.Sprintf(" VARCHAR(%d) COLLATE utf8_bin", db.DfltColcountVarcharSize)
 		}
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE TABLE %s_colcounts (%s, corpus_id VARCHAR(500), count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
-			groupedCorpusName, strings.Join(colDefs, ", "), strings.Join(columns, ", ")))
+			"CREATE TABLE %s_colcounts (%s, corpus_id VARCHAR(%d), count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
+			groupedCorpusName, strings.Join(colDefs, ", "), db.DfltColcountVarcharSize, strings.Join(columns, ", ")))
 		if dbErr != nil {
 			return fmt.Errorf("failed to create table '%s_colcounts': %s", groupedCorpusName, dbErr)
 		}

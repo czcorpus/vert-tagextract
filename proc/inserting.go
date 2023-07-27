@@ -38,6 +38,10 @@ var (
 	ErrorTooManyParsingErrors = errors.New("too many parsing errors")
 )
 
+func trimString(s string) string {
+	return string([]rune(s)[:db.DfltColcountVarcharSize])
+}
+
 // Status stores some basic information about vertical file processing
 type Status struct {
 	Datetime       time.Time
@@ -75,7 +79,6 @@ type TTExtractor struct {
 	columnModders      []*modders.StringTransformerChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
-	appendMode         bool
 	stopChan           <-chan os.Signal
 	statusChan         chan<- Status
 }
@@ -394,7 +397,7 @@ func (tte *TTExtractor) insertCounts() error {
 			tte.valueDict,
 			func(attColIdx int, v string, i int) int {
 				if i == tte.ngramConf.AttrColumns[attColIdx] {
-					args[attColIdx] = v
+					args[attColIdx] = trimString(v)
 					return attColIdx + 1
 				}
 				return attColIdx
