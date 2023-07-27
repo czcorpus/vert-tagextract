@@ -21,6 +21,17 @@ import (
 	"fmt"
 )
 
+const (
+	// DfltLAVarcharSize specifies a max. size
+	// for VARCHARs used for live-attributes columns
+	DfltLAVarcharSize = 1000
+
+	// DfltColcountVarcharSize specifies a max. size
+	// for VARCHARs used for "colcounts" (which is a base
+	// for n-grams)
+	DfltColcountVarcharSize = 255
+)
+
 type Insert struct {
 	Stmt *sql.Stmt
 }
