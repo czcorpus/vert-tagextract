@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
 
@@ -39,7 +40,11 @@ var (
 )
 
 func trimString(s string) string {
-	return string([]rune(s)[:db.DfltColcountVarcharSize])
+	limit := utf8.RuneCountInString(s)
+	if limit > db.DfltColcountVarcharSize {
+		limit = db.DfltColcountVarcharSize
+	}
+	return string([]rune(s)[:limit])
 }
 
 // Status stores some basic information about vertical file processing
