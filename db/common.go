@@ -24,7 +24,7 @@ import (
 const (
 	// DfltLAVarcharSize specifies a max. size
 	// for VARCHARs used for live-attributes columns
-	DfltLAVarcharSize = 1000
+	DfltLAVarcharSize = 700
 
 	// DfltColcountVarcharSize specifies a max. size
 	// for VARCHARs used for "colcounts" (which is a base
