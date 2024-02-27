@@ -124,14 +124,12 @@ func getElementHintRepr(v *vertigo.Structure) (ident string) {
 // (e.g.: <p>...<p>...</p>..</p>).
 type defaultAccum struct {
 	elms map[string]*AccumItem
-
-	lastStruct *vertigo.Structure
 }
 
 func (sa *defaultAccum) begin(line int, v *vertigo.Structure) error {
 	prev, ok := sa.elms[v.Name]
 	if ok {
-		return fmt.Errorf("Self-recursion not allowed, element %s in %s", getElementHintRepr(v), getElementHintRepr(prev.elm))
+		return fmt.Errorf("self-recursion not allowed, element %s in %s", getElementHintRepr(v), getElementHintRepr(prev.elm))
 	}
 	sa.elms[v.Name] = &AccumItem{elm: v, lineOpen: line}
 	return nil
@@ -143,7 +141,7 @@ func (sa *defaultAccum) end(line int, name string) (*AccumItem, error) {
 		delete(sa.elms, name)
 		return tmp, nil
 	}
-	return nil, fmt.Errorf("Cannot close element [%s] - opening not found", name)
+	return nil, fmt.Errorf("cannot close element [%s] - opening not found", name)
 }
 
 func (sa *defaultAccum) ForEachAttr(fn func(structure string, attr string, val string) bool) {
