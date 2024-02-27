@@ -70,7 +70,7 @@ func TestCreateSchema(t *testing.T) {
 	structs := createStructures()
 	createSchema(db, structs, []string{}, false, []int{1})
 	// cid name type notnull dflt_value pk
-	res, err := db.Query("PRAGMA table_info(item)")
+	res, err := db.Query("PRAGMA table_info(liveattrs_entry)")
 	if err != nil {
 		panic(err)
 	}
@@ -104,8 +104,8 @@ func TestCreateSchema(t *testing.T) {
 func TestDropExisdting(t *testing.T) {
 	db := createDatabase()
 	db.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT")
-	db.Exec("CREATE TABLE item (id INT PRIMARY KEY, name TEXT")
-	db.Exec("CREATE VIEW bibliography AS SELECT * FROM item")
+	db.Exec("CREATE TABLE liveattrs_entry (id INT PRIMARY KEY, name TEXT")
+	db.Exec("CREATE VIEW bibliography AS SELECT * FROM liveattrs_entry")
 	dropExisting(db)
 
 	res, err := db.Query("SELECT name FROM sqlite_master WHERE type = 'table'")
@@ -125,7 +125,7 @@ func TestDropExisdting(t *testing.T) {
 
 func TestCreateBibView(t *testing.T) {
 	db := createDatabase()
-	db.Exec("CREATE TABLE item (id INT PRIMARY KEY, doc_id TEXT, doc_year TEXT, doc_author TEXT)")
+	db.Exec("CREATE TABLE liveattrs_entry (id INT PRIMARY KEY, doc_id TEXT, doc_year TEXT, doc_author TEXT)")
 	createBibView(db, []string{"doc_id", "doc_author"}, "doc_id")
 
 	res, err := db.Query("PRAGMA table_info(bibliography)")
