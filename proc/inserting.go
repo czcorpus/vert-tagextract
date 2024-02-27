@@ -312,7 +312,11 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 	tte.lineCounter = line
 	if accumItem.elm.Name == tte.atomStruct ||
 		accumItem.elm.Name == tte.atomParentStruct && tte.lastAtomOpenLine < accumItem.lineOpen {
-
+		if tte.currAtomAttrs == nil {
+			return fmt.Errorf(
+				"currAtomAttrs not initialized for accum. structure: %s, curr. elm.: %s, line: %d",
+				st.Name, accumItem.elm.Name, line)
+		}
 		tte.currAtomAttrs["poscount"] = tte.tokenInAtomCounter
 		values := make([]any, len(tte.attrNames))
 		for i, n := range tte.attrNames {
