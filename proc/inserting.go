@@ -258,6 +258,8 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 			attrs["wordcount"] = 0 // This value is currently unused
 			attrs["poscount"] = 0  // This value is updated once we hit the closing tag
 			attrs["corpus_id"] = tte.corpusID
+			tte.currAtomAttrs = attrs
+			tte.atomCounter++
 			if tte.colgenFn != nil {
 				var err4 error
 				attrs["item_id"], err4 = tte.colgenFn(attrs)
@@ -265,8 +267,6 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 					return tte.handleProcError(line, err4)
 				}
 			}
-			tte.currAtomAttrs = attrs
-			tte.atomCounter++
 
 		} else if st.Name == tte.atomParentStruct {
 			attrs := tte.getCurrentAccumAttrs()
