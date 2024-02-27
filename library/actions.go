@@ -121,12 +121,20 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 
 			var fn colgen.AlignedColGenFn
 			if conf.SelfJoin.IsConfigured() {
-				fn = func(args map[string]interface{}) (string, error) {
-					ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
+				fn = func(args map[string]interface{}) (ident string, err error) {
+					var colgenFn colgen.AlignedUnboundColGenFn
+					defer func() {
+						if r := recover(); r != nil {
+							ident = ""
+							err = fmt.Errorf("%v", r)
+						}
+					}()
+					colgenFn, err = colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
 					if err != nil {
-						return "", err
+						return
 					}
-					return ans(args, conf.SelfJoin.ArgColumns)
+					ident, err = colgenFn(args, conf.SelfJoin.ArgColumns)
+					return
 				}
 			}
 
