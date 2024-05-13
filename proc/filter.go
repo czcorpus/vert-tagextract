@@ -82,9 +82,12 @@ func LoadCustomFilter(libPath string, fn string) (LineFilter, error) {
 		if err != nil {
 			return nil, err
 		}
-		log.Printf("INFO: Using filter plug-in %s from %s", fn, fullPath)
+		log.Info().
+			Str("plugin", fn).
+			Str("location", fullPath).
+			Msg("Using a custom filter plug-in")
 		return f.(LineFilter), nil
 	}
-	log.Print("INFO: No custom filter plug-in defined. Using 'pass all'.")
+	log.Info().Msg("No custom filter plug-in defined. Using 'pass all'")
 	return &PassAllFilter{}, nil
 }

@@ -133,7 +133,11 @@ func createAuxIndices(database *sql.DB, cols []string) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("Created custom index %s_idx on liveattrs_entry(%s)", c, c)
+		log.Info().
+			Str("index", c+"_idx").
+			Str("table", "liveattrs_entry").
+			Str("column", c).
+			Msg("Created custom index")
 	}
 	return nil
 }
@@ -142,7 +146,7 @@ func createAuxIndices(database *sql.DB, cols []string) error {
 // It is safe to call this even if one or more
 // of these does not exist.
 func dropExisting(database *sql.DB) error {
-	log.Print("Attempting to drop possible existing tables and views...")
+	log.Info().Msg("Attempting to drop possible existing tables and views")
 	var err error
 	_, err = database.Exec("DROP TABLE IF EXISTS cache")
 	if err != nil {
@@ -160,7 +164,6 @@ func dropExisting(database *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop table 'colcounts': %s", err)
 	}
-	log.Print("...DONE")
 	return nil
 }
 
@@ -172,7 +175,7 @@ func createSchema(
 	useSelfJoin bool,
 	countColumns []int,
 ) error {
-	log.Print("Attempting to create tables and views...")
+	log.Info().Msg("Attempting to create tables and views")
 
 	var dbErr error
 	_, dbErr = database.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT)")
@@ -221,6 +224,5 @@ func createSchema(
 			return fmt.Errorf("failed to create index colcounts_corpus_id_idx on colcounts(corpus_id): %s", dbErr)
 		}
 	}
-	log.Print("...DONE")
 	return nil
 }

@@ -55,7 +55,10 @@ func (w *Writer) Initialize(appendMode bool) error {
 
 	if !appendMode {
 		if dbExisted {
-			log.Printf("The database %s already exists. Existing data will be deleted.", w.Path)
+			log.
+				Warn().
+				Str("database", w.Path).
+				Msg("The database already exists. Existing data will be deleted.")
 			err := dropExisting(w.database)
 			if err != nil {
 				return err
@@ -84,14 +87,14 @@ func (w *Writer) Initialize(appendMode bool) error {
 		dbConf = w.PreconfQueries
 
 	} else {
-		log.Print("INFO: no pre-configuration queries found, using default:")
+		log.Warn().Msg("No pre-configuration queries found, using default")
 		dbConf = []string{
 			"PRAGMA synchronous = OFF",
 			"PRAGMA journal_mode = MEMORY",
 		}
 	}
 	for _, cnf := range dbConf {
-		log.Printf("INFO: Applying %s", cnf)
+		log.Info().Str("value", cnf).Msg("Applying preconfiguration")
 		w.database.Exec(cnf)
 	}
 	w.tx, err = w.database.Begin()
@@ -124,6 +127,6 @@ func (w *Writer) Rollback() error {
 func (w *Writer) Close() {
 	err := w.database.Close()
 	if err != nil {
-		log.Print("WARNING: error closing database - ", err)
+		log.Warn().Err(err).Msg("Error closing database")
 	}
 }

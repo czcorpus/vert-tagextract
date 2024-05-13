@@ -61,7 +61,7 @@ func (w *Writer) DatabaseExists() bool {
 		return false
 	}
 	if err != nil {
-		log.Print("ERROR: failed to test data storage existence - ", err)
+		log.Error().Err(err).Msg("failed to test data storage existence")
 		return false
 	}
 	return ans
@@ -72,10 +72,10 @@ func (w *Writer) Initialize(appendMode bool) error {
 	dbExisted := w.DatabaseExists()
 	if !appendMode {
 		if dbExisted {
-			log.Printf(
-				"The data storage %s/%s already exists. Existing data will be deleted.",
-				w.dbName, w.groupedCorpusName+"_liveattrs_entry",
-			)
+			log.
+				Warn().
+				Str("storageName", w.dbName+"/"+w.groupedCorpusName+"_liveattrs_entry").
+				Msg("The data storage already exists. Existing data will be deleted.")
 			err := dropExisting(w.database, w.groupedCorpusName)
 			if err != nil {
 				return err
@@ -139,7 +139,7 @@ func (w *Writer) Rollback() error {
 func (w *Writer) Close() {
 	err := w.database.Close()
 	if err != nil {
-		log.Print("WARNING: error closing database - ", err)
+		log.Warn().Err(err).Msg("error closing database")
 	}
 }
 
