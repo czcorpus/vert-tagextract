@@ -37,7 +37,7 @@ const (
 // and 'intercorp_v13_en' will likely groupedName 'intercorp_v13'. For single corpora,
 // the groupedCorpusName is the same as the original one.
 func dropExisting(database *sql.DB, groupedCorpusName string) error {
-	log.Print("Attempting to drop possible existing tables and views...")
+	log.Info().Msg("Attempting to drop possible existing tables and views...")
 	var err error
 	_, err = database.Exec("DROP TABLE IF EXISTS cache")
 	if err != nil {
@@ -56,7 +56,7 @@ func dropExisting(database *sql.DB, groupedCorpusName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop table `%s_colcounts`: %s", groupedCorpusName, err)
 	}
-	log.Print("...DONE")
+	log.Info().Msg("...DONE")
 	return nil
 }
 
@@ -106,8 +106,11 @@ func createAuxIndices(database *sql.DB, groupedCorpusName string, cols []string)
 		if err != nil {
 			return err
 		}
-		log.Printf("Created custom index `%s_%s_idx` on `%s%s`(%s)",
-			groupedCorpusName, c, groupedCorpusName, laTableSuffix, c)
+		log.Info().
+			Str("index", fmt.Sprintf(`%s_%s_idx`, groupedCorpusName, c)).
+			Str("table", groupedCorpusName+laTableSuffix).
+			Str("column", c).
+			Msg("Created custom database index")
 	}
 	return nil
 }
@@ -149,7 +152,7 @@ func createSchema(
 	useSelfJoin bool,
 	countColumns []int,
 ) error {
-	log.Print("Attempting to create tables and views...")
+	log.Info().Msg("Attempting to create tables and views")
 
 	cols := generateColNames(structures)
 	colsDefs := make([]string, len(cols))
@@ -207,6 +210,6 @@ func createSchema(
 				groupedCorpusName, dbErr)
 		}
 	}
-	log.Print("...DONE")
+	log.Info().Msg("DONE")
 	return nil
 }

@@ -112,7 +112,7 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) err
 		key := ngram.UniqueID(arfc.ngramConf.UniqKeyColumns)
 		cnt, ok := arfc.counts[key]
 		if !ok {
-			log.Printf("WARNING: token %s not found", key)
+			log.Warn().Str("token", key).Msg("token not found")
 			return nil
 		}
 		if !cnt.HasARF() {

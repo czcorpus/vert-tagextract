@@ -55,6 +55,9 @@ func NewStringTransformerChain(specif string) *StringTransformerChain {
 }
 
 func (m *StringTransformerChain) Transform(s string) string {
+	if m == nil {
+		return s
+	}
 	ans := s
 	for _, mod := range m.fn {
 		ans = mod.Transform(ans)
@@ -76,6 +79,6 @@ func StringTransformerFactory(name string) StringTransformer {
 	case "", TransformerIdentity:
 		return Identity{}
 	}
-	log.Printf("WARNING: unknown modder function %s", name)
+	log.Warn().Str("function", name).Msg("unknown modder function")
 	return nil
 }

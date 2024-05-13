@@ -77,7 +77,6 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	}
 
 	var filesToProc []string
-
 	if conf.VerticalFile != "" && len(conf.VerticalFiles) > 0 {
 		return nil, fmt.Errorf("cannot use verticalFile and verticalFiles at the same time")
 	}
@@ -98,6 +97,12 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
 	}
 
+	if len(conf.Ngrams.UniqKeyColumns) == 0 {
+		log.Warn().Msg(
+			"No columns defined to compose keys for grouping and counting ngrams. " +
+				"All the columns will be used")
+	}
+
 	go func() {
 		defer dbWriter.Close()
 		defer close(statusChan)
@@ -111,7 +116,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 			return
 		}
 		for _, verticalFile := range filesToProc {
-			log.Printf("Processing vertical %s", verticalFile)
+			log.Info().Str("vertical", verticalFile).Msg("Processing vertical")
 			parserConf := &vertigo.ParserConf{
 				InputFilePath:         verticalFile,
 				StructAttrAccumulator: "nil",
@@ -162,7 +167,6 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		if err != nil {
 			sendErrStatus(statusChan, "", err)
 		}
-		log.Print("...DONE")
 	}()
 
 	return statusChan, nil

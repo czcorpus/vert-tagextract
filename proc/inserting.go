@@ -158,7 +158,7 @@ func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 		ProcessedLines: lineNum,
 		Error:          err,
 	}
-	log.Printf("ERROR: Line %d: %s", lineNum, err)
+	log.Error().Err(err).Int("lineNumber", lineNum).Msg("parsing error")
 	tte.errorCounter++
 	if tte.errorCounter > tte.maxNumErrors {
 		return ErrorTooManyParsingErrors
@@ -434,7 +434,9 @@ func (tte *TTExtractor) insertCounts() error {
 				ProcessedLines: tte.lineCounter,
 			}
 			if i%100000 == 0 {
-				log.Printf("... written %d records", i)
+				log.Info().
+					Int("numProcessed", i).
+					Msg("next chunk of records processed")
 			}
 		}
 		i++
@@ -449,8 +451,8 @@ func (tte *TTExtractor) insertCounts() error {
 // makes sqlite3 inserts a few orders of magnitude
 // faster.
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
-	log.Print("INFO: using zero-based indexing when reporting line errors")
-	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
+	log.Info().Msg("using zero-based indexing when reporting line errors")
+	log.Info().Str("file", conf.InputFilePath).Msg("Starting to process vertical file")
 	tte.attrNames = tte.generateAttrList()
 	var err error
 	tte.docInsert, err = tte.database.PrepareInsert("liveattrs_entry", tte.attrNames)
@@ -470,7 +472,8 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 	}
 	if len(tte.ngramConf.AttrColumns) > 0 {
 		if tte.ngramConf.CalcARF {
-			log.Print("####### 2nd run - calculating ARF ###################")
+			log.Info().
+				Msg("calculating ARF (processing the vertical again)")
 			arfCalc := ptcount.NewARFCalculator(
 				tte.GetColCounts(),
 				tte.ngramConf,
@@ -485,7 +488,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 			}
 			arfCalc.Finalize()
 		}
-		log.Print("Saving defined positional attributes counts into the database...")
+		log.Info().Msg("Saving defined positional attributes counts into the database")
 		err = tte.insertCounts()
 		if err != nil {
 			return err

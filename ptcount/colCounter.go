@@ -1,6 +1,7 @@
 // Copyright 2019 Tomas Machalek <tomas.machalek@gmail.com>
 // Copyright 2019 Charles University, Faculty of Arts,
-//                Institute of the Czech National Corpus
+//
+//	Institute of the Czech National Corpus
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,6 +146,12 @@ func (c *NgramCounter) AddToken(pos []int) {
 
 // UniqueID creates an unique ngram identifier
 func (c *NgramCounter) UniqueID(columns []int) string {
+	if len(columns) == 0 {
+		columns = make([]int, len(c.tokens[0].Columns))
+		for i := 0; i < len(columns); i++ {
+			columns[i] = i
+		}
+	}
 	ans := make([]string, len(columns))
 	for i, col := range columns {
 		ans[i] = c.columnNgramNumeric(col)

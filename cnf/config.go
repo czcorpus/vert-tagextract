@@ -18,7 +18,7 @@ package cnf
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 
 	"github.com/czcorpus/vert-tagextract/v2/db"
 )
@@ -97,7 +97,7 @@ func (c *VTEConf) HasConfiguredFilter() bool {
 }
 
 func LoadConf(confPath string) (*VTEConf, error) {
-	rawData, err := ioutil.ReadFile(confPath)
+	rawData, err := os.ReadFile(confPath)
 	if err != nil {
 		return nil, err
 	}
