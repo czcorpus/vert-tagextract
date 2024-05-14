@@ -17,6 +17,7 @@
 package proc
 
 import (
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"os"
@@ -181,7 +182,6 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 	if tte.filter.Apply(tk, tte.attrAccum) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
-
 		attributes := make([]int, tte.ngramConf.MaxRequiredColumn()+1)
 		for _, vertCol := range tte.ngramConf.VertColumns {
 			v := tk.PosAttrByIndex(vertCol.Idx)
@@ -368,7 +368,7 @@ func (tte *TTExtractor) calcNumAttrs() int {
 }
 
 func (tte *TTExtractor) generateAttrList() []string {
-	attrNames := make([]string, tte.calcNumAttrs()+4)
+	attrNames := make([]string, tte.calcNumAttrs()+3)
 	i := 0
 	for s, items := range tte.structures {
 		for _, item := range items {
@@ -388,8 +388,18 @@ func (tte *TTExtractor) generateAttrList() []string {
 	return attrNames
 }
 
+func (tte *TTExtractor) generateHashID(ng *ptcount.NgramCounter) string {
+	hasher := sha1.New()
+	for _, vc := range tte.ngramConf.VertColumns {
+		hasher.Write([]byte(ng.ColumnNgram(vc.Idx, tte.valueDict)))
+	}
+	return fmt.Sprintf("%x", hasher.Sum(nil))
+}
+
 func (tte *TTExtractor) insertCounts() error {
-	colItems := append(db.GenerateColCountNames(tte.ngramConf.VertColumns), "corpus_id", "count", "arf")
+	colItems := append(
+		db.GenerateColCountNames(tte.ngramConf.VertColumns),
+		"corpus_id", "count", "arf", "hash_id")
 	ins, err := tte.database.PrepareInsert("colcounts", colItems)
 	if err != nil {
 		return nil
@@ -402,20 +412,21 @@ func (tte *TTExtractor) insertCounts() error {
 		default:
 		}
 
-		args := make([]interface{}, len(tte.ngramConf.VertColumns)+3)
+		args := make([]interface{}, len(tte.ngramConf.VertColumns)+4)
 		for i, vc := range tte.ngramConf.VertColumns {
 			args[i] = count.ColumnNgram(vc.Idx, tte.valueDict)
 		}
 
 		numCol := len(tte.ngramConf.VertColumns)
 		args[numCol] = tte.corpusID
-		args[len(tte.ngramConf.VertColumns)+1] = count.Count()
+		args[numCol+1] = count.Count()
 		if count.HasARF() {
 			args[numCol+2] = count.ARF().ARF
 
 		} else {
 			args[numCol+2] = -1
 		}
+		args[numCol+3] = tte.generateHashID(count)
 		err = ins.Exec(args...)
 		if err != nil {
 			return err

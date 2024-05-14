@@ -77,13 +77,7 @@ func (nc *NgramConf) UpgradeLegacy() error {
 }
 
 func (nc *NgramConf) MaxRequiredColumn() int {
-	ans := 0
-	for _, c := range nc.AttrColumns {
-		if c > ans {
-			ans = c
-		}
-	}
-	return ans
+	return nc.VertColumns.MaxColumn()
 }
 
 // VTEConf holds configuration for a concrete

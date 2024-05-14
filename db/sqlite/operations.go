@@ -209,13 +209,13 @@ func createSchema(
 	}
 
 	if len(countColumns) > 0 {
-		columns := db.GenerateColCountNames(countColumns)
 		colDefs := db.GenerateColCountNames(countColumns)
 		for i, c := range colDefs {
 			colDefs[i] = c + " TEXT"
 		}
-		_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE colcounts (%s, corpus_id TEXT, count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
-			strings.Join(colDefs, ", "), strings.Join(columns, ", ")))
+		_, dbErr = database.Exec(fmt.Sprintf(
+			"CREATE TABLE colcounts (hash_id varchar(40), %s, corpus_id TEXT, count INTEGER, arf INTEGER, PRIMARY KEY(hash_id))",
+			strings.Join(colDefs, ", ")))
 		if dbErr != nil {
 			return fmt.Errorf("failed to create table 'colcounts': %s", dbErr)
 		}

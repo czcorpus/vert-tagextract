@@ -107,7 +107,7 @@ func (w *Writer) Initialize(appendMode bool) error {
 
 func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation, error) {
 	if w.tx == nil {
-		return nil, fmt.Errorf("cannot prepare insert - no transaction active")
+		return nil, fmt.Errorf("cannot prepare insert into %s - no transaction active", table)
 	}
 	valReplac := make([]string, len(attrs))
 	for i := range attrs {
@@ -123,7 +123,7 @@ func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare INSERT: %s", err)
+		return nil, fmt.Errorf("failed to prepare INSERT into %s: %s", table, err)
 	}
 	return &db.Insert{Stmt: stmt}, nil
 }
