@@ -40,7 +40,7 @@ func (nw *NullWriter) CreateSchema(
 	structures map[string][]string,
 	indexedCols []string,
 	useSelfJoin bool,
-	countColumns []int,
+	countColumns db.VertColumns,
 ) error {
 	return fmt.Errorf("no valid database writer installed")
 }
@@ -73,7 +73,7 @@ func NewDatabaseWriter(conf *cnf.VTEConf) (db.Writer, error) {
 			IndexedCols:    conf.IndexedCols,
 			SelfJoinConf:   conf.SelfJoin,
 			BibViewConf:    conf.BibView,
-			CountColumns:   conf.Ngrams.AttrColumns,
+			VertColumns:    conf.Ngrams.VertColumns,
 		}
 		return db, nil
 	case "mysql":

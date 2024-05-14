@@ -150,7 +150,7 @@ func createSchema(
 	structures map[string][]string,
 	indexedCols []string,
 	useSelfJoin bool,
-	countColumns []int,
+	countColumns db.VertColumns,
 ) error {
 	log.Info().Msg("Attempting to create tables and views")
 

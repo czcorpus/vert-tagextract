@@ -80,6 +80,47 @@ type Conf struct {
 	PreconfQueries []string `json:"preconfSettings"`
 }
 
+type VertColumn struct {
+	Idx   int    `json:"idx"`
+	ModFn string `json:"modFn,omitempty"`
+}
+
+func (vc VertColumn) IsUndefined() bool {
+	return vc.Idx == -1
+}
+
+type VertColumns []VertColumn
+
+func (vc VertColumns) GetByIdx(idx int) VertColumn {
+	for _, v := range vc {
+		if v.Idx == idx {
+			return v
+		}
+	}
+	return VertColumn{Idx: -1}
+}
+
+// MaxColumn returns max index of a column
+// in VertColumns. E.g. if one defines
+// columns {3, 10, 7}, then 10 will be returned.
+//
+// Rationale: We need this because in some cases,
+// it is easier to prepare slices for all the columns
+// - including the ones a user does not want to export.
+// E.g. for column mod functions, in case user wants
+// just column 3, we create a slice {"", "", "", ""}
+// so that we can theoretically apply column mod
+// to any value.
+func (vc VertColumns) MaxColumn() int {
+	var maxc int
+	for _, v := range vc {
+		if v.Idx > maxc {
+			maxc = v.Idx
+		}
+	}
+	return maxc
+}
+
 type Writer interface {
 	DatabaseExists() bool
 	Initialize(appendMode bool) error
@@ -96,10 +137,10 @@ type InsertOperation interface {
 // GenerateColCountNames creates a list of general column names
 // for positional attributes we would like to count. E.g. in
 // case we want [0, 1, 3] (this can be something like 'word', 'lemma' )
-func GenerateColCountNames(colCount []int) []string {
+func GenerateColCountNames(colCount VertColumns) []string {
 	columns := make([]string, len(colCount))
 	for i, v := range colCount {
-		columns[i] = fmt.Sprintf("col%d", v)
+		columns[i] = fmt.Sprintf("col%d", v.Idx)
 	}
 	return columns
 }

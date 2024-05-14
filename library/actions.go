@@ -65,6 +65,9 @@ func determineLineReportingStep(filePath string) int {
 // The 'stopChan' can be used to handle calling service shutdown.
 // The 'statusChan' is for getting extraction status information including possible errors
 func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
+	if err := conf.Ngrams.UpgradeLegacy(); err != nil {
+		return nil, fmt.Errorf("failed to process file: %w", err)
+	}
 	statusChan := make(chan proc.Status)
 	dbWriter, err := factory.NewDatabaseWriter(conf)
 	if err != nil {
@@ -95,12 +98,6 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 
 	} else {
 		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
-	}
-
-	if len(conf.Ngrams.UniqKeyColumns) == 0 {
-		log.Warn().Msg(
-			"No columns defined to compose keys for grouping and counting ngrams. " +
-				"All the columns will be used")
 	}
 
 	go func() {

@@ -112,7 +112,7 @@ func NewTTExtractor(
 		colgenFn:         colgenFn,
 		ngramConf:        &conf.Ngrams,
 		colCounts:        make(map[string]*ptcount.NgramCounter),
-		columnModders:    make([]*modders.StringTransformerChain, len(conf.Ngrams.AttrColumns)),
+		columnModders:    make([]*modders.StringTransformerChain, conf.Ngrams.VertColumns.MaxColumn()+1),
 		filter:           filter,
 		maxNumErrors:     conf.MaxNumErrors,
 		currSentence:     make([][]int, 0, 20),
@@ -121,8 +121,8 @@ func NewTTExtractor(
 		stopChan:         stopChan,
 	}
 
-	for i, m := range conf.Ngrams.ColumnMods {
-		ans.columnModders[i] = modders.NewStringTransformerChain(m)
+	for _, m := range conf.Ngrams.VertColumns {
+		ans.columnModders[m.Idx] = modders.NewStringTransformerChain(m.ModFn)
 	}
 	if conf.StackStructEval {
 		ans.attrAccum = newStructStack()
@@ -183,9 +183,9 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 		tte.tokenCounter = tk.Idx
 
 		attributes := make([]int, tte.ngramConf.MaxRequiredColumn()+1)
-		for i, idx := range tte.ngramConf.AttrColumns {
-			v := tk.PosAttrByIndex(idx)
-			attributes[idx] = tte.valueDict.Add(tte.columnModders[i].Transform(v))
+		for _, vertCol := range tte.ngramConf.VertColumns {
+			v := tk.PosAttrByIndex(vertCol.Idx)
+			attributes[vertCol.Idx] = tte.valueDict.Add(tte.columnModders[vertCol.Idx].Transform(v))
 		}
 
 		tte.currSentence = append(tte.currSentence, attributes)
@@ -195,7 +195,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 			for i := startPos; i < len(tte.currSentence); i++ {
 				ngram.AddToken(tte.currSentence[i])
 			}
-			key := ngram.UniqueID(tte.ngramConf.UniqKeyColumns)
+			key := ngram.UniqueID()
 			cnt, ok := tte.colCounts[key]
 			if !ok {
 				tte.colCounts[key] = ngram
@@ -389,7 +389,7 @@ func (tte *TTExtractor) generateAttrList() []string {
 }
 
 func (tte *TTExtractor) insertCounts() error {
-	colItems := append(db.GenerateColCountNames(tte.ngramConf.AttrColumns), "corpus_id", "count", "arf")
+	colItems := append(db.GenerateColCountNames(tte.ngramConf.VertColumns), "corpus_id", "count", "arf")
 	ins, err := tte.database.PrepareInsert("colcounts", colItems)
 	if err != nil {
 		return nil
@@ -401,21 +401,15 @@ func (tte *TTExtractor) insertCounts() error {
 			return fmt.Errorf("received stop signal: %s", s)
 		default:
 		}
-		args := make([]interface{}, len(tte.ngramConf.AttrColumns)+3)
-		count.ForEachAttrAcc(
-			tte.valueDict,
-			func(attColIdx int, v string, i int) int {
-				if i == tte.ngramConf.AttrColumns[attColIdx] {
-					args[attColIdx] = trimString(v)
-					return attColIdx + 1
-				}
-				return attColIdx
-			},
-			0,
-		)
-		numCol := len(tte.ngramConf.AttrColumns)
+
+		args := make([]interface{}, len(tte.ngramConf.VertColumns)+3)
+		for i, vc := range tte.ngramConf.VertColumns {
+			args[i] = count.ColumnNgram(vc.Idx, tte.valueDict)
+		}
+
+		numCol := len(tte.ngramConf.VertColumns)
 		args[numCol] = tte.corpusID
-		args[len(tte.ngramConf.AttrColumns)+1] = count.Count()
+		args[len(tte.ngramConf.VertColumns)+1] = count.Count()
 		if count.HasARF() {
 			args[numCol+2] = count.ARF().ARF
 
@@ -470,7 +464,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 		}
 		return fmt.Errorf("failed to parse vertical file: %s", parserErr)
 	}
-	if len(tte.ngramConf.AttrColumns) > 0 {
+	if len(tte.ngramConf.VertColumns) > 0 {
 		if tte.ngramConf.CalcARF {
 			log.Info().
 				Msg("calculating ARF (processing the vertical again)")

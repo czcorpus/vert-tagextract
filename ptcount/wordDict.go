@@ -16,12 +16,17 @@
 
 package ptcount
 
+// WordDict is basically a bidirectional map for mapping
+// between words and ints and ints and words. It is used to
+// reduce memory usage when collecting n-grams.
 type WordDict struct {
 	counter int
 	data    map[string]int
 	dataRev map[int]string
 }
 
+// Add adds a word to the dictionary and returns
+// its numeric representation.
 func (w *WordDict) Add(word string) int {
 	v, ok := w.data[word]
 	if !ok {
@@ -35,6 +40,7 @@ func (w *WordDict) Add(word string) int {
 	}
 }
 
+// Get returns a word based on its integer representation.
 func (w *WordDict) Get(idx int) string {
 	return w.dataRev[idx]
 }

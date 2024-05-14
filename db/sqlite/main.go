@@ -37,7 +37,7 @@ type Writer struct {
 	IndexedCols    []string
 	SelfJoinConf   db.SelfJoinConf
 	BibViewConf    db.BibViewConf
-	CountColumns   []int
+	VertColumns    db.VertColumns
 }
 
 func (w *Writer) DatabaseExists() bool {
@@ -69,7 +69,7 @@ func (w *Writer) Initialize(appendMode bool) error {
 			w.Structures,
 			w.IndexedCols,
 			w.SelfJoinConf.IsConfigured(),
-			w.CountColumns,
+			w.VertColumns,
 		)
 		if err != nil {
 			return err

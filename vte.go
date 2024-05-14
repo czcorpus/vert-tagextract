@@ -42,6 +42,10 @@ var (
 	gitCommit string
 )
 
+func init() {
+	zerolog.DurationFieldUnit = time.Second
+}
+
 func dumpNewConf(corpusName string) {
 	conf := cnf.VTEConf{
 		Corpus: corpusName,
