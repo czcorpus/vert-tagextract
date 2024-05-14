@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/czcorpus/vert-tagextract/v2/db"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -66,11 +67,11 @@ func TestGenerateViewColDefs(t *testing.T) {
 }
 
 func TestCreateSchema(t *testing.T) {
-	db := createDatabase()
+	database := createDatabase()
 	structs := createStructures()
-	createSchema(db, structs, []string{}, false, []int{1})
+	createSchema(database, structs, []string{}, false, db.VertColumns{{Idx: 1}})
 	// cid name type notnull dflt_value pk
-	res, err := db.Query("PRAGMA table_info(liveattrs_entry)")
+	res, err := database.Query("PRAGMA table_info(liveattrs_entry)")
 	if err != nil {
 		panic(err)
 	}

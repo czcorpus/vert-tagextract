@@ -47,7 +47,7 @@ type Writer struct {
 	IndexedCols  []string
 	SelfJoinConf db.SelfJoinConf
 	BibViewConf  db.BibViewConf
-	CountColumns []int
+	CountColumns db.VertColumns
 }
 
 func (w *Writer) DatabaseExists() bool {
@@ -169,6 +169,6 @@ func NewWriter(conf *cnf.VTEConf) (*Writer, error) {
 		IndexedCols:       conf.IndexedCols,
 		SelfJoinConf:      conf.SelfJoin,
 		BibViewConf:       conf.BibView,
-		CountColumns:      conf.Ngrams.AttrColumns,
+		CountColumns:      conf.Ngrams.VertColumns,
 	}, nil
 }

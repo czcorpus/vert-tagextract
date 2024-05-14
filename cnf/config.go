@@ -18,9 +18,11 @@ package cnf
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/czcorpus/vert-tagextract/v2/db"
+	"github.com/rs/zerolog/log"
 )
 
 // FilterConf specifies a plug-in containing
@@ -35,11 +37,43 @@ type FilterConf struct {
 // be used to extract all the unique PoS tags or frequency information
 // about words/lemmas.
 type NgramConf struct {
-	AttrColumns    []int    `json:"attrColumns"`
-	ColumnMods     []string `json:"columnMods"`
-	NgramSize      int      `json:"ngramSize"`
-	UniqKeyColumns []int    `json:"uniqKeyColumns"`
-	CalcARF        bool     `json:"calcARF"`
+	NgramSize   int            `json:"ngramSize"`
+	CalcARF     bool           `json:"calcARF"`
+	VertColumns db.VertColumns `json:"vertColumns"`
+
+	// Legacy values
+
+	// AttrColumns
+	//
+	// Deprecated: please use VertColumns instead which groups idx and mod function
+	AttrColumns []int `json:"attrColumns"`
+
+	// ColumnMods
+	//
+	// Deprecated: please use VertColumns instead which groups idx and mod function
+	ColumnMods []string `json:"columnMods"`
+}
+
+func (nc *NgramConf) UpgradeLegacy() error {
+	if len(nc.AttrColumns) > 0 {
+		log.Warn().Msg("upgrading legacy n-gram configuration")
+		if len(nc.VertColumns) > 0 && len(nc.VertColumns) != len(nc.AttrColumns) {
+			return fmt.Errorf("vertColumns and attrColumns mismatch")
+		}
+		ans := make(db.VertColumns, len(nc.AttrColumns))
+		cmods := nc.ColumnMods
+		if len(cmods) == 0 {
+			cmods = make([]string, len(nc.AttrColumns))
+		}
+		for i, v := range nc.AttrColumns {
+			ans[i] = db.VertColumn{
+				Idx:   v,
+				ModFn: cmods[i],
+			}
+		}
+		nc.VertColumns = ans
+	}
+	return nil
 }
 
 func (nc *NgramConf) MaxRequiredColumn() int {
