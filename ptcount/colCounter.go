@@ -152,6 +152,9 @@ func (c *NgramCounter) AddToken(pos []int) {
 
 // UniqueID creates an unique ngram identifier
 func (c *NgramCounter) UniqueID() string {
+	if len(c.tokens) == 0 {
+		return ""
+	}
 	ans := make([]string, len(c.tokens[0].Columns))
 	for i := 0; i < len(ans); i++ {
 		ans[i] = c.columnNgramNumeric(i)

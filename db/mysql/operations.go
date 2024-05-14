@@ -190,14 +190,13 @@ func createSchema(
 	}
 
 	if len(countColumns) > 0 {
-		columns := db.GenerateColCountNames(countColumns)
 		colDefs := db.GenerateColCountNames(countColumns)
 		for i, c := range colDefs {
 			colDefs[i] = c + fmt.Sprintf(" VARCHAR(%d) COLLATE utf8_bin", db.DfltColcountVarcharSize)
 		}
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE TABLE %s_colcounts (%s, corpus_id VARCHAR(%d), count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
-			groupedCorpusName, strings.Join(colDefs, ", "), db.DfltColcountVarcharSize, strings.Join(columns, ", ")))
+			"CREATE TABLE %s_colcounts (%s, hash_id VARCHAR(40), corpus_id VARCHAR(%d), count INTEGER, arf INTEGER, PRIMARY KEY(hash_id))",
+			groupedCorpusName, strings.Join(colDefs, ", "), db.DfltColcountVarcharSize))
 		if dbErr != nil {
 			return fmt.Errorf("failed to create table '%s_colcounts': %s", groupedCorpusName, dbErr)
 		}
