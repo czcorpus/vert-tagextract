@@ -46,12 +46,12 @@ type NgramConf struct {
 	// AttrColumns
 	//
 	// Deprecated: please use VertColumns instead which groups idx and mod function
-	AttrColumns []int `json:"attrColumns"`
+	AttrColumns []int `json:"attrColumns,omitempty"`
 
 	// ColumnMods
 	//
 	// Deprecated: please use VertColumns instead which groups idx and mod function
-	ColumnMods []string `json:"columnMods"`
+	ColumnMods []string `json:"columnMods,omitempty"`
 }
 
 func (nc *NgramConf) UpgradeLegacy() error {
@@ -78,6 +78,14 @@ func (nc *NgramConf) UpgradeLegacy() error {
 
 func (nc *NgramConf) MaxRequiredColumn() int {
 	return nc.VertColumns.MaxColumn()
+}
+
+// IsZero returns true if the object contains all the attributes set to their
+// respective zero values (CalcARF == 0, len(VertColumns) == 0 etc.)
+// This is used e.g. to reset n-gram configuration in CNC-MASM
+func (nc *NgramConf) IsZero() bool {
+	return !nc.CalcARF && len(nc.VertColumns) == 0 && len(nc.ColumnMods) == 0 &&
+		len(nc.AttrColumns) == 0 && nc.NgramSize == 0
 }
 
 // VTEConf holds configuration for a concrete
