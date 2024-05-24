@@ -25,6 +25,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	passwordReplacement = "*****"
+)
+
 // FilterConf specifies a plug-in containing
 // a compatible filter (see LineFilter interface).
 type FilterConf struct {
@@ -130,6 +134,30 @@ type VTEConf struct {
 
 func (c *VTEConf) HasConfiguredFilter() bool {
 	return c.Filter.Lib != "" && c.Filter.Fn != ""
+}
+
+func (c *VTEConf) HasConfiguredVertical() bool {
+	return c.VerticalFile != "" || len(c.VerticalFiles) > 0
+}
+
+func (c *VTEConf) GetDefinedVerticals() []string {
+	if c.VerticalFile != "" {
+		return []string{c.VerticalFile}
+	}
+	return c.VerticalFiles
+}
+
+// WithoutPassword returns a new semi-shallow copy of the called
+// config with sensitive information replaced by `*`. By the
+// "semi-shallownes" we mean that in case a sensitive information
+// overwriting would affect the original object, such part will
+// be provided as a deep copy.
+func (c *VTEConf) WithoutPasswords() VTEConf {
+	ans := *c
+	if ans.DB.Password != "" {
+		ans.DB.Password = passwordReplacement
+	}
+	return ans
 }
 
 func LoadConf(confPath string) (*VTEConf, error) {
