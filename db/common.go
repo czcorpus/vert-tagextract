@@ -83,6 +83,13 @@ type Conf struct {
 type VertColumn struct {
 	Idx   int    `json:"idx"`
 	ModFn string `json:"modFn,omitempty"`
+
+	// Role is a general "tag" specifying additional
+	// usage in systems using vert-tagextract.
+	// E.g. when combined with cnc-masm, we use this to
+	// specify whether the column belongs to one of
+	// {word, lemma, sublemma, tag}
+	Role string `json:"role,omitempty"`
 }
 
 func (vc VertColumn) IsUndefined() bool {
