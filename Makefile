@@ -8,10 +8,10 @@ LDFLAGS=-ldflags "-w -s -X main.version=${VERSION} -X main.build=${BUILD} -X mai
 all: test build
 
 build:
-	go build -o vte2 ${LDFLAGS}
+	go build -o vte2 ${LDFLAGS} ./cmd/vte
 
 install:
-	go install -o vte2 ${LDFLAGS}
+	go install -o vte2 ${LDFLAGS} ./cmd/vte
 
 clean:
 	rm klogproc
