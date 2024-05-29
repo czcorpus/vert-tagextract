@@ -28,7 +28,7 @@ var (
 	tstPos = []string{
 		"X", "INTJ", "PRON", "NOUN", "PUNCT",
 		"ADP", "SCONJ", "VERB", "DET", "PROPN",
-		"ADV", "PART", "AUX", "ADJ", "CCONJ", "NUM",
+		"ADV", "PART", "AUX", "ADJ", "CCONJ", "NUM", "SYM",
 	}
 
 	tstFeat = []string{
@@ -113,7 +113,7 @@ func showSelectedFeats(path string, posIdx, featIdx int) error {
 		line := rdr.Text()
 		if !strings.HasPrefix(line, "<") { // a line with structure definition
 			tmp := strings.Split(line, "\t")
-			printMsg("%s\t| %s\n", tmp[posIdx], tmp[featIdx])
+			printMsg("%s\t| %s", tmp[posIdx], tmp[featIdx])
 			i++
 		}
 		if i > 20 {
