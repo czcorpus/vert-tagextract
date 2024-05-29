@@ -4,6 +4,7 @@
 *.so
 *.dylib
 ./vte2
+./udex
 
 # Test binary, build with `go test -c`
 *.test
