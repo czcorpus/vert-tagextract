@@ -3,7 +3,8 @@
 *.dll
 *.so
 *.dylib
-vte
+./vte2
+./udex
 
 # Test binary, build with `go test -c`
 *.test
