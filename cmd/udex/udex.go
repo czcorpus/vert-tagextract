@@ -54,37 +54,29 @@ func printMsg(msg string, args ...any) {
 	fmt.Fprintf(os.Stderr, msg+"\n", args...)
 }
 
-type tokenFeats []feat
-
-func (tf tokenFeats) String() string {
-	return fmt.Sprintf("%v", []feat(tf))
-}
-
-type tokenMVFeats struct {
-	value []tokenFeats
+type tokenFeats struct {
+	value []feat
 	hash  uint64
 }
 
-func (tf *tokenMVFeats) MarshalJSON() ([]byte, error) {
+func (tf *tokenFeats) MarshalJSON() ([]byte, error) {
 	return sonic.Marshal(tf.value)
 }
 
-func (tf *tokenMVFeats) Hash() uint64 {
+func (tf *tokenFeats) Hash() uint64 {
 	if tf.hash == 0 {
 		var buff strings.Builder
 		for _, x := range tf.value {
-			for _, x2 := range x {
-				buff.WriteString(x2[0] + x2[1])
-			}
+			buff.WriteString(x[0] + x[1])
 		}
 		tf.hash = hashString(buff.String())
 	}
 	return tf.hash
 }
 
-func (tf *tokenMVFeats) Compare(other collections.Comparable) int {
+func (tf *tokenFeats) Compare(other collections.Comparable) int {
 	s1 := tf.Hash()
-	sOther, ok := other.(*tokenMVFeats)
+	sOther, ok := other.(*tokenFeats)
 	if !ok {
 		return -1
 	}
@@ -101,7 +93,7 @@ func getFeatMultiValue(s string) []string {
 
 func parseFeats(s string) (tokenFeats, error) {
 	items := strings.Split(s, "|")
-	ans := make([]feat, 0, len(items)+1) // +1 is for PoS added by the caller
+	feats := make([]feat, 0, len(items)+1) // +1 is for PoS added by the caller
 	for _, item := range items {
 		tmp := strings.SplitN(item, "=", 2)
 		if len(tmp) == 0 || item == "" {
@@ -113,12 +105,12 @@ func parseFeats(s string) (tokenFeats, error) {
 		if tmp[0] == "_" {
 			continue
 		}
-		ans = append(ans, feat{tmp[0], tmp[1]})
+		feats = append(feats, feat{tmp[0], tmp[1]})
 	}
-	return ans, nil
+	return tokenFeats{value: feats}, nil
 }
 
-func parseVerticalLine(line string, posIdx, featIdx int, analyzer *analyzer) *tokenMVFeats {
+func parseVerticalLine(line string, posIdx, featIdx int, analyzer *analyzer) []*tokenFeats {
 	analyzer.SetNewLine()
 	positions := strings.Split(line, "\t")
 	posInfo := getPosMultiValue(positions[posIdx])
@@ -133,35 +125,33 @@ func parseVerticalLine(line string, posIdx, featIdx int, analyzer *analyzer) *to
 				posInfo, feats,
 			),
 		)
-		return &tokenMVFeats{}
+		return []*tokenFeats{}
 	}
-	ans := &tokenMVFeats{
-		value: make([]tokenFeats, len(posInfo)),
-	}
+	ans := make([]*tokenFeats, 0, len(posInfo))
 	for i := 0; i < len(posInfo); i++ {
 		pFeats, err := parseFeats(feats[i])
 		if err != nil {
 			analyzer.AddNamedError(err.Error())
 		}
-		for _, v := range pFeats {
+		for _, v := range pFeats.value {
 			analyzer.AddFeat(v.Key())
 		}
-		pFeats = append(pFeats, feat{"POS", posInfo[i]})
-		sort.SliceStable(pFeats, func(i, j int) bool {
-			return pFeats[i].Key() < pFeats[j].Key()
+		pFeats.value = append(pFeats.value, feat{"POS", posInfo[i]})
+		sort.SliceStable(pFeats.value, func(i, j int) bool {
+			return pFeats.value[i].Key() < pFeats.value[j].Key()
 		})
-		ans.value[i] = pFeats
+		ans = append(ans, &pFeats)
 	}
 	return ans
 }
 
-func loadVariations(srcPath string, posIdx, featIdx int, analyzer *analyzer) ([]*tokenMVFeats, error) {
+func loadVariations(srcPath string, posIdx, featIdx int, analyzer *analyzer) ([]*tokenFeats, error) {
 
 	f, err := os.Open(srcPath)
 	if err != nil {
-		return []*tokenMVFeats{}, fmt.Errorf("failed to load variations: %w", err)
+		return []*tokenFeats{}, fmt.Errorf("failed to load variations: %w", err)
 	}
-	variants := new(collections.BinTree[*tokenMVFeats])
+	variants := new(collections.BinTree[*tokenFeats])
 	variants.UniqValues = true
 	rdr := bufio.NewScanner(f)
 	var lineNum int64
@@ -177,7 +167,7 @@ func loadVariations(srcPath string, posIdx, featIdx int, analyzer *analyzer) ([]
 				}
 				os.Exit(3)
 			}
-			variants.Add(feats)
+			variants.Add(feats...)
 		}
 		if lineNum%1000000 == 0 {
 			printMsg("processed %d lines", lineNum)
