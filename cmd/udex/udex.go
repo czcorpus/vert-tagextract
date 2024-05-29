@@ -179,7 +179,7 @@ func loadVariations(srcPath string, posIdx, featIdx int, analyzer *analyzer) ([]
 			}
 			variants.Add(feats)
 		}
-		if lineNum%1000 == 0 {
+		if lineNum%1000000 == 0 {
 			printMsg("processed %d lines", lineNum)
 		}
 	}

@@ -86,8 +86,9 @@ func (a *analyzer) TooMuchErrors() bool {
 
 func newAnalyzer(nullMode bool) *analyzer {
 	a := &analyzer{
-		posTst:  make(map[string]bool),
-		featTst: make(map[string]bool),
+		posTst:   make(map[string]bool),
+		featTst:  make(map[string]bool),
+		nullMode: nullMode,
 	}
 	for _, v := range tstPos {
 		a.posTst[v] = true
@@ -105,20 +106,20 @@ func showSelectedFeats(path string, posIdx, featIdx int) error {
 	}
 	rdr := bufio.NewScanner(f)
 	var i int
-	fmt.Print("\nSelected attributes preview:\n\n")
-	fmt.Printf("PoS \t| Feat\n")
-	fmt.Println("----------------")
+	printMsg("\nSelected attributes preview:\n\n")
+	printMsg("PoS \t| Feat\n")
+	printMsg("----------------")
 	for rdr.Scan() {
 		line := rdr.Text()
 		if !strings.HasPrefix(line, "<") { // a line with structure definition
 			tmp := strings.Split(line, "\t")
-			fmt.Printf("%s\t| %s\n", tmp[posIdx], tmp[featIdx])
+			printMsg("%s\t| %s\n", tmp[posIdx], tmp[featIdx])
 			i++
 		}
 		if i > 20 {
 			break
 		}
 	}
-	fmt.Println("---------------------")
+	printMsg("---------------------")
 	return nil
 }
