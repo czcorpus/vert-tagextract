@@ -155,7 +155,7 @@ func createSchema(
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr := database.Exec(
 		fmt.Sprintf(
-			"CREATE TABLE `%s_liveattrs_entry` (id INTEGER PRIMARY KEY auto_increment, %s)",
+			"CREATE TABLE `%s_liveattrs_entry` (id INTEGER PRIMARY KEY auto_increment, %s) ENGINE=InnoDB ROW_FORMAT=DYNAMIC",
 			groupedCorpusName,
 			joinArgs(allCollsDefs),
 		),
