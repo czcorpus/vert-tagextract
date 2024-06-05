@@ -1,9 +1,19 @@
 # Vert-tagextract
 
-Vert-tagextract (vte) is a program for **extracting structural attribute meta-data**
-and **word frequency** information (ipm, ARF)
-from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
+Vert-tagextract (vte) is a program and a library for extracting structural attribute metadata and
+n-gram frequency information (ipm, ARF) from a [corpus vertical file](https://www.sketchengine.co.uk/documentation/preparing-corpus-text/)
 to an **SQL database**.
+
+It can be used either as a library or command line tools:
+
+### vte2
+
+Vte2 is a tool for extracting structural metadata and n-grams.
+
+### udex
+
+Udex is a UD tag data extractor. It is a drop in replacement of the [prepare_ud.py](https://github.com/czcorpus/kontext/blob/be3f17918acd0fad670221e0066a33dca815a8e1/lib/plugins/default_taghelper/scripts/prepare_ud.py)
+script in KonText. It also runs almost twice as fast as the original script.
 
 The meta-data database part is used by [KonText](https://github.com/czcorpus/kontext) for its *liveattrs* plug-in.
 The complete word frequency database is used by [Word at a Glance](https://github.com/czcorpus/wdglance) but it

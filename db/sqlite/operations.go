@@ -51,7 +51,8 @@ func prepareInsert(database *sql.Tx, table string, cols []string) (*sql.Stmt, er
 	for i := range cols {
 		valReplac[i] = "?"
 	}
-	ans, err := database.Prepare(fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, joinArgs(cols), joinArgs(valReplac)))
+	ans, err := database.Prepare(
+		fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, joinArgs(cols), joinArgs(valReplac)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare INSERT: %s", err)
 	}
@@ -118,7 +119,7 @@ func generateViewColDefs(cols []string, idAttr string) []string {
 // by liveattrs to fetch bibliography information.
 func createBibView(database *sql.DB, cols []string, idAttr string) error {
 	colDefs := generateViewColDefs(cols, idAttr)
-	_, err := database.Exec(fmt.Sprintf("CREATE VIEW bibliography AS SELECT %s FROM item", joinArgs(colDefs)))
+	_, err := database.Exec(fmt.Sprintf("CREATE VIEW bibliography AS SELECT %s FROM liveattrs_entry", joinArgs(colDefs)))
 	if err != nil {
 		return err
 	}
@@ -128,11 +129,15 @@ func createBibView(database *sql.DB, cols []string, idAttr string) error {
 func createAuxIndices(database *sql.DB, cols []string) error {
 	var err error
 	for _, c := range cols {
-		_, err = database.Exec(fmt.Sprintf("CREATE INDEX %s_idx ON item(%s)", c, c))
+		_, err = database.Exec(fmt.Sprintf("CREATE INDEX %s_idx ON liveattrs_entry(%s)", c, c))
 		if err != nil {
 			return err
 		}
-		log.Printf("Created custom index %s_idx on item(%s)", c, c)
+		log.Info().
+			Str("index", c+"_idx").
+			Str("table", "liveattrs_entry").
+			Str("column", c).
+			Msg("Created custom index")
 	}
 	return nil
 }
@@ -141,7 +146,7 @@ func createAuxIndices(database *sql.DB, cols []string) error {
 // It is safe to call this even if one or more
 // of these does not exist.
 func dropExisting(database *sql.DB) error {
-	log.Print("Attempting to drop possible existing tables and views...")
+	log.Info().Msg("Attempting to drop possible existing tables and views")
 	var err error
 	_, err = database.Exec("DROP TABLE IF EXISTS cache")
 	if err != nil {
@@ -151,15 +156,14 @@ func dropExisting(database *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop view 'bibliography': %s", err)
 	}
-	_, err = database.Exec("DROP TABLE IF EXISTS item")
+	_, err = database.Exec("DROP TABLE IF EXISTS liveattrs_entry")
 	if err != nil {
-		return fmt.Errorf("failed to drop table 'item': %s", err)
+		return fmt.Errorf("failed to drop table 'liveattrs_entry': %s", err)
 	}
 	_, err = database.Exec("DROP TABLE IF EXISTS colcounts")
 	if err != nil {
 		return fmt.Errorf("failed to drop table 'colcounts': %s", err)
 	}
-	log.Print("...DONE")
 	return nil
 }
 
@@ -169,9 +173,9 @@ func createSchema(
 	structures map[string][]string,
 	indexedCols []string,
 	useSelfJoin bool,
-	countColumns []int,
+	countColumns db.VertColumns,
 ) error {
-	log.Print("Attempting to create tables and views...")
+	log.Info().Msg("Attempting to create tables and views")
 
 	var dbErr error
 	_, dbErr = database.Exec("CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT)")
@@ -186,15 +190,17 @@ func createSchema(
 	}
 	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
-	_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, %s)", joinArgs(allCollsDefs)))
+	_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE liveattrs_entry (id INTEGER PRIMARY KEY AUTOINCREMENT, %s)", joinArgs(allCollsDefs)))
 	if dbErr != nil {
-		return fmt.Errorf("failed to create table 'item': %s", dbErr)
+		return fmt.Errorf("failed to create table 'liveattrs_entry': %s", dbErr)
 	}
 
 	if useSelfJoin {
-		_, dbErr = database.Exec("CREATE UNIQUE INDEX item_id_corpus_id_idx ON item(item_id, corpus_id)")
+		_, dbErr = database.Exec(
+			"CREATE UNIQUE INDEX item_id_corpus_id_idx ON liveattrs_entry(item_id, corpus_id)")
 		if dbErr != nil {
-			return fmt.Errorf("failed to create index item_id_idx on item(item_id): %s", dbErr)
+			return fmt.Errorf(
+				"failed to create index item_id_idx on liveattrs_entry(item_id): %s", dbErr)
 		}
 	}
 	dbErr = createAuxIndices(database, indexedCols)
@@ -203,13 +209,13 @@ func createSchema(
 	}
 
 	if len(countColumns) > 0 {
-		columns := db.GenerateColCountNames(countColumns)
 		colDefs := db.GenerateColCountNames(countColumns)
 		for i, c := range colDefs {
 			colDefs[i] = c + " TEXT"
 		}
-		_, dbErr = database.Exec(fmt.Sprintf("CREATE TABLE colcounts (%s, corpus_id TEXT, count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
-			strings.Join(colDefs, ", "), strings.Join(columns, ", ")))
+		_, dbErr = database.Exec(fmt.Sprintf(
+			"CREATE TABLE colcounts (hash_id varchar(40), %s, corpus_id TEXT, count INTEGER, arf INTEGER, PRIMARY KEY(hash_id))",
+			strings.Join(colDefs, ", ")))
 		if dbErr != nil {
 			return fmt.Errorf("failed to create table 'colcounts': %s", dbErr)
 		}
@@ -218,6 +224,5 @@ func createSchema(
 			return fmt.Errorf("failed to create index colcounts_corpus_id_idx on colcounts(corpus_id): %s", dbErr)
 		}
 	}
-	log.Print("...DONE")
 	return nil
 }

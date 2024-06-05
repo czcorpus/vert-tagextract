@@ -26,6 +26,10 @@ import (
 	"github.com/czcorpus/vert-tagextract/v2/db"
 )
 
+const (
+	laTableSuffix = "_liveattrs_entry"
+)
+
 // dropExisting drops existing tables/views.
 // It is safe to call this even if one or more of these does not exist.
 // Please note that the groupedCorpusName argument represents a derived corpus name
@@ -33,7 +37,7 @@ import (
 // and 'intercorp_v13_en' will likely groupedName 'intercorp_v13'. For single corpora,
 // the groupedCorpusName is the same as the original one.
 func dropExisting(database *sql.DB, groupedCorpusName string) error {
-	log.Print("Attempting to drop possible existing tables and views...")
+	log.Info().Msg("Attempting to drop possible existing tables and views...")
 	var err error
 	_, err = database.Exec("DROP TABLE IF EXISTS cache")
 	if err != nil {
@@ -43,15 +47,16 @@ func dropExisting(database *sql.DB, groupedCorpusName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop view `%s_bibliography`: %s", groupedCorpusName, err)
 	}
-	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s_liveattrs_entry`", groupedCorpusName))
+	_, err = database.Exec(
+		fmt.Sprintf("DROP TABLE IF EXISTS `%s%s`", groupedCorpusName, laTableSuffix))
 	if err != nil {
-		return fmt.Errorf("failed to drop table '%s_liveattrs_entry': %s", groupedCorpusName, err)
+		return fmt.Errorf("failed to drop table '%s%s': %s", groupedCorpusName, laTableSuffix, err)
 	}
 	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s_colcounts`", groupedCorpusName))
 	if err != nil {
 		return fmt.Errorf("failed to drop table `%s_colcounts`: %s", groupedCorpusName, err)
 	}
-	log.Print("...DONE")
+	log.Info().Msg("...DONE")
 	return nil
 }
 
@@ -96,13 +101,16 @@ func createAuxIndices(database *sql.DB, groupedCorpusName string, cols []string)
 	var err error
 	for _, c := range cols {
 		_, err = database.Exec(
-			fmt.Sprintf("CREATE INDEX `%s_%s_idx` ON `%s_liveattrs_entry`(%s)",
-				groupedCorpusName, c, groupedCorpusName, c))
+			fmt.Sprintf("CREATE INDEX `%s_%s_idx` ON `%s%s`(%s)",
+				groupedCorpusName, c, groupedCorpusName, laTableSuffix, c))
 		if err != nil {
 			return err
 		}
-		log.Printf("Created custom index `%s_%s_idx` on `%s_liveattrs_entry`(%s)",
-			groupedCorpusName, c, groupedCorpusName, c)
+		log.Info().
+			Str("index", fmt.Sprintf(`%s_%s_idx`, groupedCorpusName, c)).
+			Str("table", groupedCorpusName+laTableSuffix).
+			Str("column", c).
+			Msg("Created custom database index")
 	}
 	return nil
 }
@@ -127,8 +135,8 @@ func generateViewColDefs(cols []string, idAttr string) []string {
 func createBibView(database *sql.DB, groupedCorpusName string, cols []string, idAttr string) error {
 	colDefs := generateViewColDefs(cols, idAttr)
 	_, err := database.Exec(fmt.Sprintf(
-		"CREATE VIEW %s_bibliography AS SELECT %s FROM `%s_liveattrs_entry`",
-		groupedCorpusName, joinArgs(colDefs), groupedCorpusName))
+		"CREATE VIEW %s_bibliography AS SELECT %s FROM `%s%s`",
+		groupedCorpusName, joinArgs(colDefs), groupedCorpusName, laTableSuffix))
 	if err != nil {
 		return err
 	}
@@ -142,36 +150,38 @@ func createSchema(
 	structures map[string][]string,
 	indexedCols []string,
 	useSelfJoin bool,
-	countColumns []int,
+	countColumns db.VertColumns,
 ) error {
-	log.Print("Attempting to create tables and views...")
+	log.Info().Msg("Attempting to create tables and views")
 
 	cols := generateColNames(structures)
 	colsDefs := make([]string, len(cols))
 	for i, col := range cols {
-		colsDefs[i] = fmt.Sprintf("%s VARCHAR(255)", col)
+		colsDefs[i] = fmt.Sprintf("%s VARCHAR(%d)", col, db.DfltLAVarcharSize)
 	}
 	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
 	_, dbErr := database.Exec(
 		fmt.Sprintf(
-			"CREATE TABLE `%s_liveattrs_entry` (id INTEGER PRIMARY KEY auto_increment, %s) ENGINE=InnoDB ROW_FORMAT=DYNAMIC",
+			"CREATE TABLE `%s%s` (id INTEGER PRIMARY KEY auto_increment, %s) ENGINE=InnoDB ROW_FORMAT=DYNAMIC",
 			groupedCorpusName,
+			laTableSuffix,
 			joinArgs(allCollsDefs),
 		),
 	)
 	if dbErr != nil {
-		return fmt.Errorf("failed to create table '%s_liveattrs_entry': %s", groupedCorpusName, dbErr)
+		return fmt.Errorf(
+			"failed to create table '%s%s': %s", groupedCorpusName, laTableSuffix, dbErr)
 	}
 
 	if useSelfJoin {
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE UNIQUE INDEX `%s_liveattrs_entry_item_id_corpus_id_idx` ON `%s_liveattrs_entry`(item_id, corpus_id)",
-			groupedCorpusName, groupedCorpusName))
+			"CREATE UNIQUE INDEX `%s%s_item_id_corpus_id_idx` ON `%s%s`(item_id, corpus_id)",
+			groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffix))
 		if dbErr != nil {
 			return fmt.Errorf(
-				"failed to create index `%s_liveattrs_entry_item_id_corpus_id_idx` on `%s_liveattrs_entry`(item_id, corpus_id): %s",
-				groupedCorpusName, groupedCorpusName, dbErr)
+				"failed to create index `%s%s_item_id_corpus_id_idx` on `%s%s`(item_id, corpus_id): %s",
+				groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffix, dbErr)
 		}
 	}
 	dbErr = createAuxIndices(database, groupedCorpusName, indexedCols)
@@ -180,14 +190,13 @@ func createSchema(
 	}
 
 	if len(countColumns) > 0 {
-		columns := db.GenerateColCountNames(countColumns)
 		colDefs := db.GenerateColCountNames(countColumns)
 		for i, c := range colDefs {
-			colDefs[i] = c + " VARCHAR(127) COLLATE utf8_bin"
+			colDefs[i] = c + fmt.Sprintf(" VARCHAR(%d) COLLATE utf8_bin", db.DfltColcountVarcharSize)
 		}
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE TABLE %s_colcounts (%s, corpus_id VARCHAR(127), count INTEGER, arf INTEGER, PRIMARY KEY(%s))",
-			groupedCorpusName, strings.Join(colDefs, ", "), strings.Join(columns, ", ")))
+			"CREATE TABLE %s_colcounts (%s, hash_id VARCHAR(40), corpus_id VARCHAR(%d), count INTEGER, arf INTEGER, PRIMARY KEY(hash_id))",
+			groupedCorpusName, strings.Join(colDefs, ", "), db.DfltColcountVarcharSize))
 		if dbErr != nil {
 			return fmt.Errorf("failed to create table '%s_colcounts': %s", groupedCorpusName, dbErr)
 		}
@@ -200,6 +209,6 @@ func createSchema(
 				groupedCorpusName, dbErr)
 		}
 	}
-	log.Print("...DONE")
+	log.Info().Msg("DONE")
 	return nil
 }

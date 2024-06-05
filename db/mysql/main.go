@@ -47,7 +47,7 @@ type Writer struct {
 	IndexedCols  []string
 	SelfJoinConf db.SelfJoinConf
 	BibViewConf  db.BibViewConf
-	CountColumns []int
+	CountColumns db.VertColumns
 }
 
 func (w *Writer) DatabaseExists() bool {
@@ -61,7 +61,7 @@ func (w *Writer) DatabaseExists() bool {
 		return false
 	}
 	if err != nil {
-		log.Print("ERROR: failed to test data storage existence - ", err)
+		log.Error().Err(err).Msg("failed to test data storage existence")
 		return false
 	}
 	return ans
@@ -72,10 +72,10 @@ func (w *Writer) Initialize(appendMode bool) error {
 	dbExisted := w.DatabaseExists()
 	if !appendMode {
 		if dbExisted {
-			log.Printf(
-				"The data storage %s/%s already exists. Existing data will be deleted.",
-				w.dbName, w.groupedCorpusName,
-			)
+			log.
+				Warn().
+				Str("storageName", w.dbName+"/"+w.groupedCorpusName+"_liveattrs_entry").
+				Msg("The data storage already exists. Existing data will be deleted.")
 			err := dropExisting(w.database, w.groupedCorpusName)
 			if err != nil {
 				return err
@@ -107,16 +107,23 @@ func (w *Writer) Initialize(appendMode bool) error {
 
 func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation, error) {
 	if w.tx == nil {
-		return nil, fmt.Errorf("cannot prepare insert - no transaction active")
+		return nil, fmt.Errorf("cannot prepare insert into %s - no transaction active", table)
 	}
 	valReplac := make([]string, len(attrs))
 	for i := range attrs {
 		valReplac[i] = "?"
 	}
 	stmt, err := w.tx.Prepare(
-		fmt.Sprintf("INSERT INTO `%s_%s` (%s) VALUES (%s)", w.groupedCorpusName, table, joinArgs(attrs), joinArgs(valReplac)))
+		fmt.Sprintf(
+			"INSERT INTO `%s_%s` (%s) VALUES (%s)",
+			w.groupedCorpusName,
+			table,
+			joinArgs(attrs),
+			joinArgs(valReplac),
+		),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare INSERT: %s", err)
+		return nil, fmt.Errorf("failed to prepare INSERT into %s: %s", table, err)
 	}
 	return &db.Insert{Stmt: stmt}, nil
 }
@@ -132,7 +139,7 @@ func (w *Writer) Rollback() error {
 func (w *Writer) Close() {
 	err := w.database.Close()
 	if err != nil {
-		log.Print("WARNING: error closing database - ", err)
+		log.Warn().Err(err).Msg("error closing database")
 	}
 }
 
@@ -162,6 +169,6 @@ func NewWriter(conf *cnf.VTEConf) (*Writer, error) {
 		IndexedCols:       conf.IndexedCols,
 		SelfJoinConf:      conf.SelfJoin,
 		BibViewConf:       conf.BibView,
-		CountColumns:      conf.Ngrams.AttrColumns,
+		CountColumns:      conf.Ngrams.VertColumns,
 	}, nil
 }

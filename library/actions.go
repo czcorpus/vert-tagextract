@@ -65,6 +65,9 @@ func determineLineReportingStep(filePath string) int {
 // The 'stopChan' can be used to handle calling service shutdown.
 // The 'statusChan' is for getting extraction status information including possible errors
 func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
+	if err := conf.Ngrams.UpgradeLegacy(); err != nil {
+		return nil, fmt.Errorf("failed to process file: %w", err)
+	}
 	statusChan := make(chan proc.Status)
 	dbWriter, err := factory.NewDatabaseWriter(conf)
 	if err != nil {
@@ -77,7 +80,6 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 	}
 
 	var filesToProc []string
-
 	if conf.VerticalFile != "" && len(conf.VerticalFiles) > 0 {
 		return nil, fmt.Errorf("cannot use verticalFile and verticalFiles at the same time")
 	}
@@ -111,7 +113,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 			return
 		}
 		for _, verticalFile := range filesToProc {
-			log.Printf("Processing vertical %s", verticalFile)
+			log.Info().Str("vertical", verticalFile).Msg("Processing vertical")
 			parserConf := &vertigo.ParserConf{
 				InputFilePath:         verticalFile,
 				StructAttrAccumulator: "nil",
@@ -121,12 +123,20 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 
 			var fn colgen.AlignedColGenFn
 			if conf.SelfJoin.IsConfigured() {
-				fn = func(args map[string]interface{}) (string, error) {
-					ans, err := colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
+				fn = func(args map[string]interface{}) (ident string, err error) {
+					var colgenFn colgen.AlignedUnboundColGenFn
+					defer func() {
+						if r := recover(); r != nil {
+							ident = ""
+							err = fmt.Errorf("%v", r)
+						}
+					}()
+					colgenFn, err = colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
 					if err != nil {
-						return "", err
+						return
 					}
-					return ans(args, conf.SelfJoin.ArgColumns)
+					ident, err = colgenFn(args, conf.SelfJoin.ArgColumns)
+					return
 				}
 			}
 
@@ -154,7 +164,6 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 		if err != nil {
 			sendErrStatus(statusChan, "", err)
 		}
-		log.Print("...DONE")
 	}()
 
 	return statusChan, nil

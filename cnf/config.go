@@ -17,10 +17,16 @@
 package cnf
 
 import (
-	"encoding/json"
-	"io/ioutil"
+	"fmt"
+	"os"
 
+	"github.com/bytedance/sonic"
 	"github.com/czcorpus/vert-tagextract/v2/db"
+	"github.com/rs/zerolog/log"
+)
+
+const (
+	passwordReplacement = "*****"
 )
 
 // FilterConf specifies a plug-in containing
@@ -35,21 +41,55 @@ type FilterConf struct {
 // be used to extract all the unique PoS tags or frequency information
 // about words/lemmas.
 type NgramConf struct {
-	AttrColumns    []int    `json:"attrColumns"`
-	ColumnMods     []string `json:"columnMods"`
-	NgramSize      int      `json:"ngramSize"`
-	UniqKeyColumns []int    `json:"uniqKeyColumns"`
-	CalcARF        bool     `json:"calcARF"`
+	NgramSize   int            `json:"ngramSize"`
+	CalcARF     bool           `json:"calcARF"`
+	VertColumns db.VertColumns `json:"vertColumns"`
+
+	// Legacy values
+
+	// AttrColumns
+	//
+	// Deprecated: please use VertColumns instead which groups idx and mod function
+	AttrColumns []int `json:"attrColumns,omitempty"`
+
+	// ColumnMods
+	//
+	// Deprecated: please use VertColumns instead which groups idx and mod function
+	ColumnMods []string `json:"columnMods,omitempty"`
+}
+
+func (nc *NgramConf) UpgradeLegacy() error {
+	if len(nc.AttrColumns) > 0 {
+		log.Warn().Msg("upgrading legacy n-gram configuration")
+		if len(nc.VertColumns) > 0 && len(nc.VertColumns) != len(nc.AttrColumns) {
+			return fmt.Errorf("vertColumns and attrColumns mismatch")
+		}
+		ans := make(db.VertColumns, len(nc.AttrColumns))
+		cmods := nc.ColumnMods
+		if len(cmods) == 0 {
+			cmods = make([]string, len(nc.AttrColumns))
+		}
+		for i, v := range nc.AttrColumns {
+			ans[i] = db.VertColumn{
+				Idx:   v,
+				ModFn: cmods[i],
+			}
+		}
+		nc.VertColumns = ans
+	}
+	return nil
 }
 
 func (nc *NgramConf) MaxRequiredColumn() int {
-	ans := 0
-	for _, c := range nc.AttrColumns {
-		if c > ans {
-			ans = c
-		}
-	}
-	return ans
+	return nc.VertColumns.MaxColumn()
+}
+
+// IsZero returns true if the object contains all the attributes set to their
+// respective zero values (CalcARF == 0, len(VertColumns) == 0 etc.)
+// This is used e.g. to reset n-gram configuration in CNC-MASM
+func (nc *NgramConf) IsZero() bool {
+	return !nc.CalcARF && len(nc.VertColumns) == 0 && len(nc.ColumnMods) == 0 &&
+		len(nc.AttrColumns) == 0 && nc.NgramSize == 0
 }
 
 // VTEConf holds configuration for a concrete
@@ -96,13 +136,37 @@ func (c *VTEConf) HasConfiguredFilter() bool {
 	return c.Filter.Lib != "" && c.Filter.Fn != ""
 }
 
+func (c *VTEConf) HasConfiguredVertical() bool {
+	return c.VerticalFile != "" || len(c.VerticalFiles) > 0
+}
+
+func (c *VTEConf) GetDefinedVerticals() []string {
+	if c.VerticalFile != "" {
+		return []string{c.VerticalFile}
+	}
+	return c.VerticalFiles
+}
+
+// WithoutPassword returns a new semi-shallow copy of the called
+// config with sensitive information replaced by `*`. By the
+// "semi-shallownes" we mean that in case a sensitive information
+// overwriting would affect the original object, such part will
+// be provided as a deep copy.
+func (c *VTEConf) WithoutPasswords() VTEConf {
+	ans := *c
+	if ans.DB.Password != "" {
+		ans.DB.Password = passwordReplacement
+	}
+	return ans
+}
+
 func LoadConf(confPath string) (*VTEConf, error) {
-	rawData, err := ioutil.ReadFile(confPath)
+	rawData, err := os.ReadFile(confPath)
 	if err != nil {
 		return nil, err
 	}
 	var conf VTEConf
-	err2 := json.Unmarshal(rawData, &conf)
+	err2 := sonic.Unmarshal(rawData, &conf)
 	if err2 != nil {
 		return nil, err2
 	}

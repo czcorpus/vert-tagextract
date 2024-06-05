@@ -17,7 +17,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -34,6 +33,8 @@ import (
 	"github.com/czcorpus/vert-tagextract/v2/library"
 
 	"github.com/tomachalek/vertigo/v5"
+
+	"github.com/bytedance/sonic/encoder"
 )
 
 var (
@@ -42,8 +43,14 @@ var (
 	gitCommit string
 )
 
-func dumpNewConf() {
-	conf := cnf.VTEConf{}
+func init() {
+	zerolog.DurationFieldUnit = time.Second
+}
+
+func dumpNewConf(corpusName string) {
+	conf := cnf.VTEConf{
+		Corpus: corpusName,
+	}
 	conf.Encoding = "UTF-8"
 	conf.AtomStructure = "p"
 	conf.Structures = make(map[string][]string)
@@ -53,7 +60,8 @@ func dumpNewConf() {
 	conf.BibView.Cols = []string{"doc_id", "doc_title", "doc_author", "doc_publisher"}
 	conf.BibView.IDAttr = "doc_id"
 	conf.SelfJoin.ArgColumns = []string{}
-	b, err := json.MarshalIndent(conf, "", "  ")
+	conf.VerticalFiles = []string{"./vertical"}
+	b, err := encoder.EncodeIndented(conf, "", "  ", encoder.SortMapKeys)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to dump a new config")
 	}
@@ -61,10 +69,10 @@ func dumpNewConf() {
 	fmt.Println()
 }
 
-func exportData(confPath string, appendData bool) {
+func exportData(confPath string, appendData bool) error {
 	conf, err := cnf.LoadConf(confPath)
 	if err != nil {
-		log.Fatal().Err(err).Msg("")
+		return fmt.Errorf("failed to export data: %w", err)
 	}
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
@@ -73,14 +81,15 @@ func exportData(confPath string, appendData bool) {
 	t0 := time.Now()
 	statusChan, err := library.ExtractData(conf, appendData, signalChan)
 	if err != nil {
-		log.Fatal().Err(err).Msg("")
+		return fmt.Errorf("failed to export data: %w", err)
 	}
 	for status := range statusChan {
 		if status.Error != nil {
-			log.Print("ERROR: ", status.Error)
+			log.Error().Err(status.Error).Msg("error during data extraction (not exiting)")
 		}
 	}
-	log.Printf("Finished in %s.\n", time.Since(t0))
+	log.Info().Dur("procTime", time.Since(t0)).Msg("Finished")
+	return nil
 }
 
 func setupLog(jsonLog bool) {
@@ -152,7 +161,11 @@ func main() {
 		}
 		createCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
-		exportData(createCommand.Arg(0), false)
+		if err := exportData(createCommand.Arg(0), false); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
 	case "append":
 		if len(os.Args) < 3 {
 			fmt.Println("Missing argument")
@@ -160,7 +173,10 @@ func main() {
 		}
 		appendCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
-		exportData(appendCommand.Arg(0), true)
+		if err := exportData(appendCommand.Arg(0), true); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	case "template":
 		if len(os.Args) < 3 {
 			fmt.Println("Missing argument")
@@ -168,7 +184,7 @@ func main() {
 		}
 		templateCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
-		dumpNewConf()
+		dumpNewConf(templateCommand.Arg(0))
 	case "version":
 		fmt.Printf("vert-tagextract %s\nbuild date: %s\nlast commit: %s\n", version, build, gitCommit)
 	default:

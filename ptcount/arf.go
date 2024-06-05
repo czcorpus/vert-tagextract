@@ -96,10 +96,10 @@ func NewARFCalculator(counts map[string]*NgramCounter, ngramConf *cnf.NgramConf,
 
 // ProcToken is called by vertigo parser when a token is encountered
 func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) error {
-	attributes := make([]int, len(arfc.ngramConf.AttrColumns))
-	for i, idx := range arfc.ngramConf.AttrColumns {
-		v := tk.PosAttrByIndex(idx)
-		attributes[i] = arfc.wordDict.Add(arfc.columnModders[i].Transform(v))
+	attributes := make([]int, arfc.ngramConf.VertColumns.MaxColumn()+1)
+	for _, vertCol := range arfc.ngramConf.VertColumns {
+		v := tk.PosAttrByIndex(vertCol.Idx)
+		attributes[vertCol.Idx] = arfc.wordDict.Add(arfc.columnModders[vertCol.Idx].Transform(v))
 	}
 
 	arfc.currSentence = append(arfc.currSentence, attributes)
@@ -109,10 +109,10 @@ func (arfc *ARFCalculator) ProcToken(tk *vertigo.Token, line int, err error) err
 		for i := startPos; i < len(arfc.currSentence); i++ {
 			ngram.AddToken(arfc.currSentence[i])
 		}
-		key := ngram.UniqueID(arfc.ngramConf.UniqKeyColumns)
+		key := ngram.UniqueID()
 		cnt, ok := arfc.counts[key]
 		if !ok {
-			log.Printf("WARNING: token %s not found", key)
+			log.Warn().Str("token", key).Msg("token not found in previously processed data")
 			return nil
 		}
 		if !cnt.HasARF() {

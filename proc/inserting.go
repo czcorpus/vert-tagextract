@@ -17,10 +17,12 @@
 package proc
 
 import (
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"os"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
 
@@ -37,6 +39,14 @@ import (
 var (
 	ErrorTooManyParsingErrors = errors.New("too many parsing errors")
 )
+
+func trimString(s string) string {
+	limit := utf8.RuneCountInString(s)
+	if limit > db.DfltColcountVarcharSize {
+		limit = db.DfltColcountVarcharSize
+	}
+	return string([]rune(s)[:limit])
+}
 
 // Status stores some basic information about vertical file processing
 type Status struct {
@@ -75,7 +85,6 @@ type TTExtractor struct {
 	columnModders      []*modders.StringTransformerChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
-	appendMode         bool
 	stopChan           <-chan os.Signal
 	statusChan         chan<- Status
 }
@@ -104,7 +113,7 @@ func NewTTExtractor(
 		colgenFn:         colgenFn,
 		ngramConf:        &conf.Ngrams,
 		colCounts:        make(map[string]*ptcount.NgramCounter),
-		columnModders:    make([]*modders.StringTransformerChain, len(conf.Ngrams.AttrColumns)),
+		columnModders:    make([]*modders.StringTransformerChain, conf.Ngrams.VertColumns.MaxColumn()+1),
 		filter:           filter,
 		maxNumErrors:     conf.MaxNumErrors,
 		currSentence:     make([][]int, 0, 20),
@@ -113,8 +122,8 @@ func NewTTExtractor(
 		stopChan:         stopChan,
 	}
 
-	for i, m := range conf.Ngrams.ColumnMods {
-		ans.columnModders[i] = modders.NewStringTransformerChain(m)
+	for _, m := range conf.Ngrams.VertColumns {
+		ans.columnModders[m.Idx] = modders.NewStringTransformerChain(m.ModFn)
 	}
 	if conf.StackStructEval {
 		ans.attrAccum = newStructStack()
@@ -150,7 +159,7 @@ func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 		ProcessedLines: lineNum,
 		Error:          err,
 	}
-	log.Printf("ERROR: Line %d: %s", lineNum, err)
+	log.Error().Err(err).Int("lineNumber", lineNum).Msg("parsing error")
 	tte.errorCounter++
 	if tte.errorCounter > tte.maxNumErrors {
 		return ErrorTooManyParsingErrors
@@ -173,11 +182,10 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 	if tte.filter.Apply(tk, tte.attrAccum) {
 		tte.tokenInAtomCounter++
 		tte.tokenCounter = tk.Idx
-
 		attributes := make([]int, tte.ngramConf.MaxRequiredColumn()+1)
-		for i, idx := range tte.ngramConf.AttrColumns {
-			v := tk.PosAttrByIndex(idx)
-			attributes[idx] = tte.valueDict.Add(tte.columnModders[i].Transform(v))
+		for _, vertCol := range tte.ngramConf.VertColumns {
+			v := tk.PosAttrByIndex(vertCol.Idx)
+			attributes[vertCol.Idx] = tte.valueDict.Add(tte.columnModders[vertCol.Idx].Transform(v))
 		}
 
 		tte.currSentence = append(tte.currSentence, attributes)
@@ -187,7 +195,7 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 			for i := startPos; i < len(tte.currSentence); i++ {
 				ngram.AddToken(tte.currSentence[i])
 			}
-			key := ngram.UniqueID(tte.ngramConf.UniqKeyColumns)
+			key := ngram.UniqueID()
 			cnt, ok := tte.colCounts[key]
 			if !ok {
 				tte.colCounts[key] = ngram
@@ -250,6 +258,8 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 			attrs["wordcount"] = 0 // This value is currently unused
 			attrs["poscount"] = 0  // This value is updated once we hit the closing tag
 			attrs["corpus_id"] = tte.corpusID
+			tte.currAtomAttrs = attrs
+			tte.atomCounter++
 			if tte.colgenFn != nil {
 				var err4 error
 				attrs["item_id"], err4 = tte.colgenFn(attrs)
@@ -257,8 +267,6 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 					return tte.handleProcError(line, err4)
 				}
 			}
-			tte.currAtomAttrs = attrs
-			tte.atomCounter++
 
 		} else if st.Name == tte.atomParentStruct {
 			attrs := tte.getCurrentAccumAttrs()
@@ -304,7 +312,11 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 	tte.lineCounter = line
 	if accumItem.elm.Name == tte.atomStruct ||
 		accumItem.elm.Name == tte.atomParentStruct && tte.lastAtomOpenLine < accumItem.lineOpen {
-
+		if tte.currAtomAttrs == nil {
+			return fmt.Errorf(
+				"currAtomAttrs not initialized for accum. structure: %s, curr. elm.: %s, line: %d",
+				st.Name, accumItem.elm.Name, line)
+		}
 		tte.currAtomAttrs["poscount"] = tte.tokenInAtomCounter
 		values := make([]any, len(tte.attrNames))
 		for i, n := range tte.attrNames {
@@ -356,7 +368,7 @@ func (tte *TTExtractor) calcNumAttrs() int {
 }
 
 func (tte *TTExtractor) generateAttrList() []string {
-	attrNames := make([]string, tte.calcNumAttrs()+4)
+	attrNames := make([]string, tte.calcNumAttrs()+3)
 	i := 0
 	for s, items := range tte.structures {
 		for _, item := range items {
@@ -376,8 +388,18 @@ func (tte *TTExtractor) generateAttrList() []string {
 	return attrNames
 }
 
+func (tte *TTExtractor) generateHashID(ng *ptcount.NgramCounter) string {
+	hasher := sha1.New()
+	for _, vc := range tte.ngramConf.VertColumns {
+		hasher.Write([]byte(ng.ColumnNgram(vc.Idx, tte.valueDict)))
+	}
+	return fmt.Sprintf("%x", hasher.Sum(nil))
+}
+
 func (tte *TTExtractor) insertCounts() error {
-	colItems := append(db.GenerateColCountNames(tte.ngramConf.AttrColumns), "corpus_id", "count", "arf")
+	colItems := append(
+		db.GenerateColCountNames(tte.ngramConf.VertColumns),
+		"corpus_id", "count", "arf", "hash_id")
 	ins, err := tte.database.PrepareInsert("colcounts", colItems)
 	if err != nil {
 		return nil
@@ -389,27 +411,22 @@ func (tte *TTExtractor) insertCounts() error {
 			return fmt.Errorf("received stop signal: %s", s)
 		default:
 		}
-		args := make([]interface{}, len(tte.ngramConf.AttrColumns)+3)
-		count.ForEachAttrAcc(
-			tte.valueDict,
-			func(attColIdx int, v string, i int) int {
-				if i == tte.ngramConf.AttrColumns[attColIdx] {
-					args[attColIdx] = v
-					return attColIdx + 1
-				}
-				return attColIdx
-			},
-			0,
-		)
-		numCol := len(tte.ngramConf.AttrColumns)
+
+		args := make([]interface{}, len(tte.ngramConf.VertColumns)+4)
+		for i, vc := range tte.ngramConf.VertColumns {
+			args[i] = count.ColumnNgram(vc.Idx, tte.valueDict)
+		}
+
+		numCol := len(tte.ngramConf.VertColumns)
 		args[numCol] = tte.corpusID
-		args[len(tte.ngramConf.AttrColumns)+1] = count.Count()
+		args[numCol+1] = count.Count()
 		if count.HasARF() {
 			args[numCol+2] = count.ARF().ARF
 
 		} else {
 			args[numCol+2] = -1
 		}
+		args[numCol+3] = tte.generateHashID(count)
 		err = ins.Exec(args...)
 		if err != nil {
 			return err
@@ -422,7 +439,9 @@ func (tte *TTExtractor) insertCounts() error {
 				ProcessedLines: tte.lineCounter,
 			}
 			if i%100000 == 0 {
-				log.Printf("... written %d records", i)
+				log.Info().
+					Int("numProcessed", i).
+					Msg("next chunk of records processed")
 			}
 		}
 		i++
@@ -437,8 +456,8 @@ func (tte *TTExtractor) insertCounts() error {
 // makes sqlite3 inserts a few orders of magnitude
 // faster.
 func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
-	log.Print("INFO: using zero-based indexing when reporting line errors")
-	log.Printf("Starting to process the vertical file %s...", conf.InputFilePath)
+	log.Info().Msg("using zero-based indexing when reporting line errors")
+	log.Info().Str("file", conf.InputFilePath).Msg("Starting to process vertical file")
 	tte.attrNames = tte.generateAttrList()
 	var err error
 	tte.docInsert, err = tte.database.PrepareInsert("liveattrs_entry", tte.attrNames)
@@ -456,9 +475,10 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 		}
 		return fmt.Errorf("failed to parse vertical file: %s", parserErr)
 	}
-	if len(tte.ngramConf.AttrColumns) > 0 {
+	if len(tte.ngramConf.VertColumns) > 0 {
 		if tte.ngramConf.CalcARF {
-			log.Print("####### 2nd run - calculating ARF ###################")
+			log.Info().
+				Msg("calculating ARF (processing the vertical again)")
 			arfCalc := ptcount.NewARFCalculator(
 				tte.GetColCounts(),
 				tte.ngramConf,
@@ -473,7 +493,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 			}
 			arfCalc.Finalize()
 		}
-		log.Print("Saving defined positional attributes counts into the database...")
+		log.Info().Msg("Saving defined positional attributes counts into the database")
 		err = tte.insertCounts()
 		if err != nil {
 			return err

@@ -1,6 +1,7 @@
 // Copyright 2019 Tomas Machalek <tomas.machalek@gmail.com>
 // Copyright 2019 Charles University, Faculty of Arts,
-//                Institute of the Czech National Corpus
+//
+//	Institute of the Czech National Corpus
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,7 +75,7 @@ func (c *NgramCounter) ARF() *WordARF {
 	return c.arf
 }
 
-func (c *NgramCounter) columnNgram(colIdx int, wd *WordDict) string {
+func (c *NgramCounter) ColumnNgram(colIdx int, wd *WordDict) string {
 	tmp := make([]string, len(c.tokens))
 	for i, v := range c.tokens {
 		tmp[i] = wd.Get(v.Columns[colIdx])
@@ -82,6 +83,8 @@ func (c *NgramCounter) columnNgram(colIdx int, wd *WordDict) string {
 	return strings.Join(tmp, " ")
 }
 
+// columnNgramNumeric produces an n-gram out of values in column
+// colIdx using values' numeric representation encoded as string.
 func (c *NgramCounter) columnNgramNumeric(colIdx int) string {
 	tmp := make([]string, len(c.tokens))
 	for i, v := range c.tokens {
@@ -101,19 +104,23 @@ func (c *NgramCounter) ForEachAttr(wDict *WordDict, fn func(item string, i int))
 
 	} else if len(c.tokens) > 1 {
 		for i := range c.tokens[0].Columns {
-			fn(c.columnNgram(i, wDict), i)
+			fn(c.ColumnNgram(i, wDict), i)
 		}
 	}
 }
 
-// ForEachAttr calls the provided function on all
-// of stored columns from vertical file. Compared with
+// ForEachAttrAcc calls the provided function on all
+// of stored columns from a vertical file. Compared with
 // ForEachAttr it adds an 'acc' argument similar to
 // array reduce functions. This allows keeping track
 // of a numeric information between calls.
 // (we use it e.g. to selectively obtain some of indices
 // based on an external list of indices)
-func (c *NgramCounter) ForEachAttrAcc(wDict *WordDict, fn func(acc int, item string, i int) int, acc int) {
+func (c *NgramCounter) ForEachAttrAcc(
+	wDict *WordDict,
+	fn func(acc int, item string, i int) int,
+	acc int,
+) {
 	lacc := acc
 	if len(c.tokens) == 1 {
 		for i, v := range c.tokens[0].Columns {
@@ -122,7 +129,7 @@ func (c *NgramCounter) ForEachAttrAcc(wDict *WordDict, fn func(acc int, item str
 
 	} else if len(c.tokens) > 1 {
 		for i := range c.tokens[0].Columns {
-			lacc = fn(lacc, c.columnNgram(i, wDict), i)
+			lacc = fn(lacc, c.ColumnNgram(i, wDict), i)
 		}
 	}
 }
@@ -144,10 +151,13 @@ func (c *NgramCounter) AddToken(pos []int) {
 }
 
 // UniqueID creates an unique ngram identifier
-func (c *NgramCounter) UniqueID(columns []int) string {
-	ans := make([]string, len(columns))
-	for i, col := range columns {
-		ans[i] = c.columnNgramNumeric(col)
+func (c *NgramCounter) UniqueID() string {
+	if len(c.tokens) == 0 {
+		return ""
+	}
+	ans := make([]string, len(c.tokens[0].Columns))
+	for i := 0; i < len(ans); i++ {
+		ans[i] = c.columnNgramNumeric(i)
 	}
 	return strings.Join(ans, " ")
 }

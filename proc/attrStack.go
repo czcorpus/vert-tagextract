@@ -70,7 +70,9 @@ func (s *structStack) begin(line int, item *vertigo.Structure) error {
 
 func (s *structStack) end(line int, name string) (*AccumItem, error) {
 	if s.lastItem.value.elm.Name != name {
-		return nil, fmt.Errorf("Stack-based processing error. Encountered element: [%s], stack top: [%s]", name, s.lastItem.value.elm.Name)
+		return nil, fmt.Errorf(
+			"line: %d, encountered element: <%s>, stack top: %s",
+			line, name, getElementHintRepr(s.lastItem.value.elm))
 	}
 	tmp := s.lastItem
 	s.lastItem = s.lastItem.prev
@@ -124,14 +126,14 @@ func getElementHintRepr(v *vertigo.Structure) (ident string) {
 // (e.g.: <p>...<p>...</p>..</p>).
 type defaultAccum struct {
 	elms map[string]*AccumItem
-
-	lastStruct *vertigo.Structure
 }
 
 func (sa *defaultAccum) begin(line int, v *vertigo.Structure) error {
 	prev, ok := sa.elms[v.Name]
 	if ok {
-		return fmt.Errorf("Self-recursion not allowed, element %s in %s", getElementHintRepr(v), getElementHintRepr(prev.elm))
+		return fmt.Errorf(
+			"line: %d, self-recursion not allowed, element %s in %s",
+			line, getElementHintRepr(v), getElementHintRepr(prev.elm))
 	}
 	sa.elms[v.Name] = &AccumItem{elm: v, lineOpen: line}
 	return nil
@@ -143,7 +145,7 @@ func (sa *defaultAccum) end(line int, name string) (*AccumItem, error) {
 		delete(sa.elms, name)
 		return tmp, nil
 	}
-	return nil, fmt.Errorf("Cannot close element [%s] - opening not found", name)
+	return nil, fmt.Errorf("line: %d, cannot close element <%s> - no previous opening", line, name)
 }
 
 func (sa *defaultAccum) ForEachAttr(fn func(structure string, attr string, val string) bool) {

@@ -39,8 +39,13 @@ func fetchStringVals(attrs map[string]interface{}, useAttrs []string) ([]string,
 		switch attrs[attr].(type) {
 		case string:
 			ans[i] = attrs[attr].(string)
+		case nil:
+			return []string{}, fmt.Errorf(
+				"colGen required attribute %s not present in parsed data (check configuration)", attr)
 		default:
-			return []string{}, fmt.Errorf("Column generator function cannot accept non-string values: %v (key: %s, type %T)", attrs[attr], attr, attrs[attr])
+			return []string{}, fmt.Errorf(
+				"column generator function cannot accept non-string values: %v (key: %s, type %T)",
+				attrs[attr], attr, attrs[attr])
 		}
 	}
 	return ans, nil
@@ -48,6 +53,9 @@ func fetchStringVals(attrs map[string]interface{}, useAttrs []string) ([]string,
 
 func intercorp(attrs map[string]interface{}, useAttrs []string) (string, error) {
 	vals, err := fetchStringVals(attrs, useAttrs)
+	if err != nil {
+		return "", err
+	}
 	return vals[0][2:], err
 }
 
