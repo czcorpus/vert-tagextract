@@ -157,7 +157,7 @@ func createSchema(
 	cols := generateColNames(structures)
 	colsDefs := make([]string, len(cols))
 	for i, col := range cols {
-		colsDefs[i] = fmt.Sprintf("%s VARCHAR(%d)", col, db.DfltLAVarcharSize)
+		colsDefs[i] = fmt.Sprintf("%s TEXT", col)
 	}
 	auxColDefs := generateAuxColDefs(useSelfJoin)
 	allCollsDefs := append(colsDefs, auxColDefs...)
