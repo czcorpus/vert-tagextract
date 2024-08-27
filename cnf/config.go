@@ -21,7 +21,7 @@ import (
 	"os"
 
 	"github.com/bytedance/sonic"
-	"github.com/czcorpus/vert-tagextract/v2/db"
+	"github.com/czcorpus/vert-tagextract/v3/db"
 	"github.com/rs/zerolog/log"
 )
 

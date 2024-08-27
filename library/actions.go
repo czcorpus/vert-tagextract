@@ -17,21 +17,21 @@
 package library
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/czcorpus/vert-tagextract/v2/cnf"
-	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
-	"github.com/czcorpus/vert-tagextract/v2/db/factory"
-	"github.com/czcorpus/vert-tagextract/v2/fs"
-	"github.com/czcorpus/vert-tagextract/v2/proc"
+	"github.com/czcorpus/vert-tagextract/v3/cnf"
+	"github.com/czcorpus/vert-tagextract/v3/db/colgen"
+	"github.com/czcorpus/vert-tagextract/v3/db/factory"
+	"github.com/czcorpus/vert-tagextract/v3/fs"
+	"github.com/czcorpus/vert-tagextract/v3/proc"
 
-	"github.com/tomachalek/vertigo/v5"
+	"github.com/tomachalek/vertigo/v6"
 )
 
 func sendErrStatus(statusChan chan proc.Status, file string, err error) {
@@ -62,9 +62,8 @@ func determineLineReportingStep(filePath string) int {
 
 // ExtractData extracts structural and/or positional attributes from a vertical file
 // based on the specification in the 'conf' argument.
-// The 'stopChan' can be used to handle calling service shutdown.
-// The 'statusChan' is for getting extraction status information including possible errors
-func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) (chan proc.Status, error) {
+// The returned status channel is for getting extraction status information including possible errors
+func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan proc.Status, error) {
 	if err := conf.Ngrams.UpgradeLegacy(); err != nil {
 		return nil, fmt.Errorf("failed to process file: %w", err)
 	}
@@ -148,7 +147,7 @@ func ExtractData(conf *cnf.VTEConf, appendData bool, stopChan <-chan os.Signal) 
 					statusChan <- upd
 				}
 			}()
-			tte, err := proc.NewTTExtractor(dbWriter, conf, fn, subStatusChan, stopChan)
+			tte, err := proc.NewTTExtractor(ctx, dbWriter, conf, fn, subStatusChan)
 			if err != nil {
 				close(subStatusChan)
 				sendErrStatus(statusChan, "", err)

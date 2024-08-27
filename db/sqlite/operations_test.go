@@ -20,7 +20,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/czcorpus/vert-tagextract/v2/db"
+	"github.com/czcorpus/vert-tagextract/v3/db"
 	"github.com/stretchr/testify/assert"
 )
 

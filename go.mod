@@ -1,6 +1,6 @@
-module github.com/czcorpus/vert-tagextract/v2
+module github.com/czcorpus/vert-tagextract/v3
 
-go 1.18
+go 1.20
 
 require (
 	github.com/bytedance/sonic v1.11.8
@@ -9,7 +9,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/rs/zerolog v1.32.0
 	github.com/stretchr/testify v1.8.4
-	github.com/tomachalek/vertigo/v5 v5.1.4
+	github.com/tomachalek/vertigo/v6 v6.0.1
 )
 
 require (

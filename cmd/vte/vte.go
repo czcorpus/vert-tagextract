@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -28,11 +29,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/czcorpus/vert-tagextract/v2/cnf"
-	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
-	"github.com/czcorpus/vert-tagextract/v2/library"
+	"github.com/czcorpus/vert-tagextract/v3/cnf"
+	"github.com/czcorpus/vert-tagextract/v3/db/colgen"
+	"github.com/czcorpus/vert-tagextract/v3/library"
 
-	"github.com/tomachalek/vertigo/v5"
+	"github.com/tomachalek/vertigo/v6"
 
 	"github.com/bytedance/sonic/encoder"
 )
@@ -69,7 +70,7 @@ func dumpNewConf(corpusName string) {
 	fmt.Println()
 }
 
-func exportData(confPath string, appendData bool) error {
+func exportData(ctx context.Context, confPath string, appendData bool) error {
 	conf, err := cnf.LoadConf(confPath)
 	if err != nil {
 		return fmt.Errorf("failed to export data: %w", err)
@@ -79,7 +80,7 @@ func exportData(confPath string, appendData bool) error {
 	signal.Notify(signalChan, syscall.SIGTERM)
 
 	t0 := time.Now()
-	statusChan, err := library.ExtractData(conf, appendData, signalChan)
+	statusChan, err := library.ExtractData(ctx, conf, appendData)
 	if err != nil {
 		return fmt.Errorf("failed to export data: %w", err)
 	}
@@ -161,7 +162,8 @@ func main() {
 		}
 		createCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
-		if err := exportData(createCommand.Arg(0), false); err != nil {
+		ctx := context.TODO() // TODO
+		if err := exportData(ctx, createCommand.Arg(0), false); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -173,7 +175,8 @@ func main() {
 		}
 		appendCommand.Parse(os.Args[2:])
 		setupLog(jsonLog)
-		if err := exportData(appendCommand.Arg(0), true); err != nil {
+		ctx := context.TODO()
+		if err := exportData(ctx, appendCommand.Arg(0), true); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
