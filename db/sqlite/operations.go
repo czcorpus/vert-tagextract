@@ -29,7 +29,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/czcorpus/vert-tagextract/v2/db"
+	"github.com/czcorpus/vert-tagextract/v3/db"
 
 	_ "github.com/mattn/go-sqlite3" // load the driver
 )

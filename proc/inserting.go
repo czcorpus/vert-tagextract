@@ -17,23 +17,23 @@
 package proc
 
 import (
+	"context"
 	"crypto/sha1"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/czcorpus/vert-tagextract/v2/cnf"
-	"github.com/czcorpus/vert-tagextract/v2/db"
-	"github.com/czcorpus/vert-tagextract/v2/db/colgen"
-	"github.com/czcorpus/vert-tagextract/v2/ptcount"
-	"github.com/czcorpus/vert-tagextract/v2/ptcount/modders"
+	"github.com/czcorpus/vert-tagextract/v3/cnf"
+	"github.com/czcorpus/vert-tagextract/v3/db"
+	"github.com/czcorpus/vert-tagextract/v3/db/colgen"
+	"github.com/czcorpus/vert-tagextract/v3/ptcount"
+	"github.com/czcorpus/vert-tagextract/v3/ptcount/modders"
 
 	_ "github.com/mattn/go-sqlite3" // sqlite3 driver load
-	"github.com/tomachalek/vertigo/v5"
+	"github.com/tomachalek/vertigo/v6"
 )
 
 var (
@@ -61,6 +61,7 @@ type Status struct {
 // to a sqlite3 database. Parsed values are
 // received pasivelly by implementing vertigo.LineProcessor
 type TTExtractor struct {
+	ctx                context.Context
 	atomCounter        int
 	lineCounter        int
 	errorCounter       int
@@ -85,24 +86,24 @@ type TTExtractor struct {
 	columnModders      []*modders.StringTransformerChain
 	colCounts          map[string]*ptcount.NgramCounter
 	filter             LineFilter
-	stopChan           <-chan os.Signal
 	statusChan         chan<- Status
 }
 
 // NewTTExtractor is a factory function to
 // instantiate proper TTExtractor.
 func NewTTExtractor(
+	ctx context.Context,
 	database db.Writer,
 	conf *cnf.VTEConf,
 	colgenFn colgen.AlignedColGenFn,
 	statusChan chan Status,
-	stopChan <-chan os.Signal,
 ) (*TTExtractor, error) {
 	filter, err := LoadCustomFilter(conf.Filter.Lib, conf.Filter.Fn)
 	if err != nil {
 		return nil, err
 	}
 	ans := &TTExtractor{
+		ctx:              ctx,
 		database:         database,
 		dbConf:           &conf.DB,
 		corpusID:         conf.Corpus,
@@ -119,7 +120,6 @@ func NewTTExtractor(
 		currSentence:     make([][]int, 0, 20),
 		valueDict:        ptcount.NewWordDict(),
 		statusChan:       statusChan,
-		stopChan:         stopChan,
 	}
 
 	for _, m := range conf.Ngrams.VertColumns {
@@ -170,11 +170,6 @@ func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 // ProcToken is a part of vertigo.LineProcessor implementation.
 // It is called by Vertigo parser when a token line is encountered.
 func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error {
-	select {
-	case s := <-tte.stopChan:
-		return fmt.Errorf("received stop signal: %s", s)
-	default:
-	}
 	if err != nil {
 		return tte.handleProcError(line, err)
 	}
@@ -231,7 +226,7 @@ func (tte *TTExtractor) getCurrentAccumAttrs() map[string]interface{} {
 // is encountered.
 func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) error {
 	select {
-	case s := <-tte.stopChan:
+	case s := <-tte.ctx.Done():
 		return fmt.Errorf("received stop signal: %s", s)
 	default:
 	}
@@ -298,7 +293,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 // encountered.
 func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, err error) error {
 	select {
-	case s := <-tte.stopChan:
+	case s := <-tte.ctx.Done():
 		return fmt.Errorf("received stop signal: %s", s)
 	default:
 	}
@@ -407,7 +402,7 @@ func (tte *TTExtractor) insertCounts() error {
 	i := 0
 	for _, count := range tte.colCounts {
 		select {
-		case s := <-tte.stopChan:
+		case s := <-tte.ctx.Done():
 			return fmt.Errorf("received stop signal: %s", s)
 		default:
 		}
@@ -464,7 +459,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 	if err != nil {
 		return err
 	}
-	parserErr := vertigo.ParseVerticalFile(conf, tte)
+	parserErr := vertigo.ParseVerticalFile(tte.ctx, conf, tte)
 	if parserErr != nil {
 		tte.database.Rollback()
 		tte.statusChan <- Status{
@@ -487,7 +482,7 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 				tte.WordDict(),
 				tte.atomStruct,
 			)
-			parserErr := vertigo.ParseVerticalFile(conf, arfCalc)
+			parserErr := vertigo.ParseVerticalFile(tte.ctx, conf, arfCalc)
 			if parserErr != nil {
 				return fmt.Errorf("ERROR: %s", parserErr)
 			}

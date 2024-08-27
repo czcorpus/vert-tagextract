@@ -24,8 +24,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/czcorpus/vert-tagextract/v2/fs"
-	"github.com/tomachalek/vertigo/v5"
+	"github.com/czcorpus/vert-tagextract/v3/fs"
+	"github.com/tomachalek/vertigo/v6"
 )
 
 const (

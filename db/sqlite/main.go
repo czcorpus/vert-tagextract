@@ -22,8 +22,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/czcorpus/vert-tagextract/v2/db"
-	"github.com/czcorpus/vert-tagextract/v2/fs"
+	"github.com/czcorpus/vert-tagextract/v3/db"
+	"github.com/czcorpus/vert-tagextract/v3/fs"
 )
 
 // -------------------------------
