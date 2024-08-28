@@ -36,6 +36,8 @@ var (
 		"Poss", "PronType", "ExtPos", "Reflex", "NumForm",
 		"Foreign", "VerbForm", "Tense", "Abbr", "NumType",
 		"Definite", "Gender", "Typo", "Number", "Voice",
+		"AdpType", "Animacy", "NameType", "Gender[psor]",
+		"Number[psor]", "Variant", "NumValue",
 	}
 )
 
