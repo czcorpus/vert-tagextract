@@ -37,7 +37,8 @@ var (
 		"Foreign", "VerbForm", "Tense", "Abbr", "NumType",
 		"Definite", "Gender", "Typo", "Number", "Voice",
 		"AdpType", "Animacy", "NameType", "Gender[psor]",
-		"Number[psor]", "Variant", "NumValue",
+		"Number[psor]", "Variant", "NumValue", "PrepCase",
+		"Style", "Aspect", "Hyph", "PrepCase", "ConjType",
 	}
 )
 
