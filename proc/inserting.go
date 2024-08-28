@@ -363,22 +363,17 @@ func (tte *TTExtractor) calcNumAttrs() int {
 }
 
 func (tte *TTExtractor) generateAttrList() []string {
-	attrNames := make([]string, tte.calcNumAttrs()+3)
-	i := 0
+	attrNames := make([]string, 0, tte.calcNumAttrs()+4)
 	for s, items := range tte.structures {
 		for _, item := range items {
-			attrNames[i] = fmt.Sprintf("%s_%s", s, item)
-			i++
+			attrNames = append(attrNames, fmt.Sprintf("%s_%s", s, item))
 		}
 	}
-	attrNames[i] = "wordcount"
-	attrNames[i+1] = "poscount"
-	attrNames[i+2] = "corpus_id"
+	attrNames = append(attrNames, "wordcount")
+	attrNames = append(attrNames, "poscount")
+	attrNames = append(attrNames, "corpus_id")
 	if tte.colgenFn != nil {
-		attrNames[i+3] = "item_id"
-
-	} else {
-		attrNames = attrNames[:i+3]
+		attrNames = append(attrNames, "item_id")
 	}
 	return attrNames
 }
