@@ -163,7 +163,7 @@ func loadVariations(srcPath string, posIdx, featIdx int, analyzer *analyzer) ([]
 			if analyzer.TooManyErrors() {
 				printMsg("too many errors, please make sure that correct columns are used")
 				if analyzer.LastErr() != "" {
-					printMsg("last error: ", analyzer.LastErr())
+					printMsg("last error: %s", analyzer.LastErr())
 				}
 				os.Exit(3)
 			}
