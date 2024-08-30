@@ -80,6 +80,10 @@ func (a *analyzer) AddFeat(name string) {
 }
 
 func (a *analyzer) AddPos(value string) {
+	if value == "" {
+		printMsg("ignoring empty PoS")
+		return
+	}
 	_, ok := a.posTst[value]
 	if !ok {
 		a.lastErr = fmt.Sprintf("@@@ unknown PoS: %s", value)
