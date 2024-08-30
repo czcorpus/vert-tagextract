@@ -160,8 +160,8 @@ func loadVariations(srcPath string, posIdx, featIdx int, analyzer *analyzer) ([]
 		line := rdr.Text()
 		if !strings.HasPrefix(line, "<") { // a line with structure definition
 			feats := parseVerticalLine(line, posIdx, featIdx, analyzer)
-			if analyzer.TooMuchErrors() {
-				printMsg("too much errors, please make sure that correct columns are used")
+			if analyzer.TooManyErrors() {
+				printMsg("too many errors, please make sure that correct columns are used")
 				if analyzer.LastErr() != "" {
 					printMsg("last error: ", analyzer.LastErr())
 				}
@@ -214,6 +214,8 @@ func main() {
 		flag.PrintDefaults()
 	}
 	noChecks := flag.Bool("no-checks", false, "no previews, prompts and checks, just process the file")
+	maxNumErrors := flag.Int64("max-num-err", 0, "max. number of error to allow while finishing the processing")
+
 	flag.Parse()
 	posIdx, err := strconv.Atoi(flag.Arg(0))
 	if err != nil {
@@ -237,7 +239,7 @@ func main() {
 	}
 	t0 := time.Now()
 
-	analyzer := newAnalyzer(*noChecks)
+	analyzer := newAnalyzer(*noChecks, *maxNumErrors)
 	feats, err := loadVariations(flag.Arg(2), posIdx, featIdx, analyzer)
 	if err != nil {
 		printMsg("failed to load variants: %w", err)
