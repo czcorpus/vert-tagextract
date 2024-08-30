@@ -43,12 +43,13 @@ var (
 )
 
 type analyzer struct {
-	posTst    map[string]bool
-	featTst   map[string]bool
-	numMiss   int64
-	procLines int64
-	lastErr   string
-	nullMode  bool
+	posTst       map[string]bool
+	featTst      map[string]bool
+	numMiss      int64
+	procLines    int64
+	lastErr      string
+	nullMode     bool
+	maxNumErrors int64
 }
 
 func (a *analyzer) SetNewLine() {
@@ -60,6 +61,7 @@ func (a *analyzer) AddError() {
 }
 
 func (a *analyzer) AddNamedError(msg string) {
+	printMsg(msg)
 	a.numMiss += 10 // named error has higher weight than e.g. an unknown feature
 	a.lastErr = msg
 }
@@ -71,7 +73,8 @@ func (a *analyzer) LastErr() string {
 func (a *analyzer) AddFeat(name string) {
 	_, ok := a.featTst[name]
 	if !ok {
-		fmt.Println("@@@ unknown feat: ", name)
+		a.lastErr = fmt.Sprintf("@@@ unknown feat: %s", name)
+		printMsg(a.lastErr)
 		a.numMiss++
 	}
 }
@@ -79,19 +82,22 @@ func (a *analyzer) AddFeat(name string) {
 func (a *analyzer) AddPos(value string) {
 	_, ok := a.posTst[value]
 	if !ok {
+		a.lastErr = fmt.Sprintf("@@@ unknown PoS: %s", value)
+		printMsg(a.lastErr)
 		a.numMiss++
 	}
 }
 
-func (a *analyzer) TooMuchErrors() bool {
-	return !a.nullMode && a.procLines > 1000 && a.numMiss > 100
+func (a *analyzer) TooManyErrors() bool {
+	return !a.nullMode && a.procLines > 1000 && a.numMiss > a.maxNumErrors
 }
 
-func newAnalyzer(nullMode bool) *analyzer {
+func newAnalyzer(nullMode bool, maxNumErrors int64) *analyzer {
 	a := &analyzer{
-		posTst:   make(map[string]bool),
-		featTst:  make(map[string]bool),
-		nullMode: nullMode,
+		posTst:       make(map[string]bool),
+		featTst:      make(map[string]bool),
+		nullMode:     nullMode,
+		maxNumErrors: maxNumErrors,
 	}
 	for _, v := range tstPos {
 		a.posTst[v] = true
