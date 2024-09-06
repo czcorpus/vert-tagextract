@@ -26,19 +26,23 @@ import (
 
 var (
 	tstPos = []string{
-		"X", "INTJ", "PRON", "NOUN", "PUNCT",
-		"ADP", "SCONJ", "VERB", "DET", "PROPN",
-		"ADV", "PART", "AUX", "ADJ", "CCONJ", "NUM", "SYM",
+		"ADJ", "ADP", "ADV", "ASP", "AUX", "BS", "CCONJ", "COMP", "CONJ_CORD", "CONJ_SUB",
+		"DEF", "DET", "FOC", "FUT", "GEN", "GEN_DEF", "GEN_PRON", "HEMM", "INT", "INTJ",
+		"KIEN", "KN", "LIL", "LIL_DEF", "LIL_PRON", "NEG", "NOUN", "NOUN_PROP", "NSE",
+		"NUM", "NUM_CRD", "NUM_FRC", "NUM_ORD", "NUM_WHD", "PART", "PART_ACT", "PART_PASS",
+		"PDHEDP", "PDOENP", "PEMP", "PREP", "PREP_DEF", "PREP_PRON", "PROG", "PRON", "PRON_DEM",
+		"PRON_DEM_DEF", "PRON_INDEF", "PRON_INT", "PRON_PERS", "PRON_PERS_NEG", "PRON_REC",
+		"PRON_REF", "PROPN", "PTEDP", "PTENP", "PUNCT", "PV", "QUAN", "RS", "SCONJ", "SVS",
+		"SYM", "UPI", "UPO", "UPS", "VERB", "VERB_PSEU", "VTHOO", "VTUOA", "VTUOM", "X",
+		"X_ABV", "X_BOR", "X_DIG", "X_ENG", "X_FOR", "X_PUN", "ZE", "ZM",
 	}
 
 	tstFeat = []string{
-		"Polarity", "Case", "Degree", "Mood", "Person",
-		"Poss", "PronType", "ExtPos", "Reflex", "NumForm",
-		"Foreign", "VerbForm", "Tense", "Abbr", "NumType",
-		"Definite", "Gender", "Typo", "Number", "Voice",
-		"AdpType", "Animacy", "NameType", "Gender[psor]",
-		"Number[psor]", "Variant", "NumValue", "PrepCase",
-		"Style", "Aspect", "Hyph", "PrepCase", "ConjType",
+		"Abbr", "AdjType", "AdpType", "Animacy", "Aspect", "Case", "Clitic", "ConjType",
+		"Definite", "Degree", "ExtPos", "Foreign", "Gender", "Gender[psor]", "Hyph", "Mood",
+		"NameType", "NumForm", "NumType", "NumValue", "Number", "Number[psor]", "PartType",
+		"Person", "Person[psor]", "Polarity", "Poss", "PrepCase", "PronType", "Reflex", "Style",
+		"Subcat", "Tense", "Typo", "Variant", "VerbForm", "VerbType", "Voice",
 	}
 )
 
