@@ -19,6 +19,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -65,6 +66,24 @@ type BibViewConf struct {
 
 func (c *BibViewConf) IsConfigured() bool {
 	return c.IDAttr != "" && len(c.Cols) > 0
+}
+
+func (c *BibViewConf) NormIDAttr() string {
+	if strings.Contains(c.IDAttr, ".") {
+		return strings.Replace(c.IDAttr, ".", "_", 1)
+	}
+	return c.IDAttr
+}
+
+func (c *BibViewConf) IDAttrElements() (string, string) {
+	tmp := strings.SplitN(c.IDAttr, "_", 2)
+	if len(tmp) == 1 {
+		tmp = strings.SplitN(c.IDAttr, ".", 2)
+	}
+	if len(tmp) > 1 {
+		return tmp[0], tmp[1]
+	}
+	return "", ""
 }
 
 type Conf struct {
