@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/rs/zerolog/log"
@@ -46,6 +47,14 @@ func trimString(s string) string {
 		limit = db.DfltColcountVarcharSize
 	}
 	return string([]rune(s)[:limit])
+}
+
+func hasInitialCap(s string) bool {
+	if s == "" {
+		return false
+	}
+	rs := []rune(s)
+	return unicode.IsUpper(rs[0])
 }
 
 // Status stores some basic information about vertical file processing
@@ -389,7 +398,7 @@ func (tte *TTExtractor) generateHashID(ng *ptcount.NgramCounter) string {
 func (tte *TTExtractor) insertCounts() error {
 	colItems := append(
 		db.GenerateColCountNames(tte.ngramConf.VertColumns),
-		"corpus_id", "count", "arf", "hash_id")
+		"corpus_id", "count", "arf", "hash_id", "initial_cap")
 	ins, err := tte.database.PrepareInsert("colcounts", colItems)
 	if err != nil {
 		return nil
@@ -402,7 +411,7 @@ func (tte *TTExtractor) insertCounts() error {
 		default:
 		}
 
-		args := make([]interface{}, len(tte.ngramConf.VertColumns)+4)
+		args := make([]interface{}, len(tte.ngramConf.VertColumns)+5)
 		for i, vc := range tte.ngramConf.VertColumns {
 			args[i] = count.ColumnNgram(vc.Idx, tte.valueDict)
 		}
@@ -417,6 +426,12 @@ func (tte *TTExtractor) insertCounts() error {
 			args[numCol+2] = -1
 		}
 		args[numCol+3] = tte.generateHashID(count)
+		lemmaVal := tte.ngramConf.VertColumns.GetByRole("lemma")
+		var hasInitCap bool
+		if !lemmaVal.IsUndefined() {
+			hasInitCap = hasInitialCap(count.ColumnNgram(lemmaVal.Idx, tte.valueDict))
+		}
+		args[numCol+4] = hasInitCap
 		err = ins.Exec(args...)
 		if err != nil {
 			return err
