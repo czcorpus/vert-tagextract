@@ -41,8 +41,13 @@ type FilterConf struct {
 // be used to extract all the unique PoS tags or frequency information
 // about words/lemmas.
 type NgramConf struct {
-	NgramSize   int            `json:"ngramSize"`
-	CalcARF     bool           `json:"calcARF"`
+	NgramSize int  `json:"ngramSize"`
+	CalcARF   bool `json:"calcARF"`
+
+	// VertColumns specifies which columns should be extracted from
+	// a vertical file along with a modifier function (e.g. for converting
+	// values to lowercase) and a "role" tag (specifying whether the column
+	// is "word", "lemma", "sublemma", "tag", "pos")
 	VertColumns db.VertColumns `json:"vertColumns"`
 
 	// Legacy values
