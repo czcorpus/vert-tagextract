@@ -103,7 +103,7 @@ type VertColumn struct {
 	// usage in systems using vert-tagextract.
 	// E.g. when combined with cnc-masm, we use this to
 	// specify whether the column belongs to one of
-	// {word, lemma, sublemma, tag}
+	// {word, lemma, sublemma, tag, pos}
 	Role string `json:"role,omitempty"`
 }
 
@@ -116,6 +116,15 @@ type VertColumns []VertColumn
 func (vc VertColumns) GetByIdx(idx int) VertColumn {
 	for _, v := range vc {
 		if v.Idx == idx {
+			return v
+		}
+	}
+	return VertColumn{Idx: -1}
+}
+
+func (vc VertColumns) GetByRole(role string) VertColumn {
+	for _, v := range vc {
+		if v.Role == role {
 			return v
 		}
 	}

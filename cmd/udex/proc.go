@@ -41,8 +41,9 @@ var (
 		"Abbr", "AdjType", "AdpType", "Animacy", "Aspect", "Case", "Clitic", "ConjType",
 		"Definite", "Degree", "ExtPos", "Foreign", "Gender", "Gender[psor]", "Hyph", "Mood",
 		"NameType", "NumForm", "NumType", "NumValue", "Number", "Number[psor]", "PartType",
-		"Person", "Person[psor]", "Polarity", "Poss", "PrepCase", "PronType", "Reflex", "Style",
-		"Subcat", "Tense", "Typo", "Variant", "VerbForm", "VerbType", "Voice",
+		"Person", "Person[psor]", "Polarity", "Position", "Poss", "PrepCase", "PronType",
+		"PuncType", "Reflex", "Strength", "Style", "Subcat", "Tense", "Typo", "Variant", "VerbForm",
+		"VerbType", "Voice",
 	}
 )
 
