@@ -195,20 +195,34 @@ func createSchema(
 			colDefs[i] = c + fmt.Sprintf(" VARCHAR(%d) COLLATE utf8_bin", db.DfltColcountVarcharSize)
 		}
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE TABLE %s_colcounts (%s, hash_id VARCHAR(40), corpus_id VARCHAR(%d), count INTEGER, arf INTEGER, initial_cap TINYINT NOT NULL DEFAULT 0, PRIMARY KEY(hash_id))",
+			"CREATE TABLE %s_colcounts ("+
+				"%s, hash_id VARCHAR(40), corpus_id VARCHAR(%d), "+
+				"count INTEGER, arf INTEGER, initial_cap TINYINT NOT NULL DEFAULT 0, "+
+				"ngram_size TINYINT NOT NULL, "+
+				"PRIMARY KEY(hash_id)"+
+				")",
 			groupedCorpusName, strings.Join(colDefs, ", "), db.DfltColcountVarcharSize))
 		if dbErr != nil {
 			return fmt.Errorf("failed to create table '%s_colcounts': %s", groupedCorpusName, dbErr)
 		}
-		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE INDEX %s_colcounts_corpus_id_idx ON %s_colcounts(corpus_id)",
-			groupedCorpusName, groupedCorpusName))
+		indexName := fmt.Sprintf("%s_colcounts_corpus_id_idx", groupedCorpusName)
+		indexTarget := fmt.Sprintf("%s_colcounts(corpus_id)", groupedCorpusName)
+		log.Debug().Str("indexName", indexName).Msg("creating index")
+		_, dbErr = database.Exec(fmt.Sprintf("CREATE INDEX %s ON %s", indexName, indexTarget))
 		if dbErr != nil {
 			return fmt.Errorf(
-				"failed to create index colcounts_corpus_id_idx on %s_colcounts(corpus_id): %s",
-				groupedCorpusName, dbErr)
+				"failed to create index %s on %s: %s", indexName, indexTarget, dbErr)
+		}
+		indexName = fmt.Sprintf("%s_colcounts_ngram_size_idx", groupedCorpusName)
+		indexTarget = fmt.Sprintf("%s_colcounts(ngram_size)", groupedCorpusName)
+		log.Debug().Str("indexName", indexName).Msg("creating index")
+		_, dbErr = database.Exec(fmt.Sprintf("CREATE INDEX %s ON %s", indexName, indexTarget))
+		if dbErr != nil {
+			return fmt.Errorf(
+				"failed to create index %s on %s: %s",
+				indexName, indexTarget, dbErr)
 		}
 	}
-	log.Info().Msg("DONE")
+	log.Info().Msg("Finished creating colcounts table and its indexes")
 	return nil
 }
