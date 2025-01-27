@@ -398,7 +398,7 @@ func (tte *TTExtractor) generateHashID(ng *ptcount.NgramCounter) string {
 func (tte *TTExtractor) insertCounts() error {
 	colItems := append(
 		db.GenerateColCountNames(tte.ngramConf.VertColumns),
-		"corpus_id", "count", "arf", "hash_id", "initial_cap")
+		"corpus_id", "count", "arf", "hash_id", "initial_cap", "ngram_size")
 	ins, err := tte.database.PrepareInsert("colcounts", colItems)
 	if err != nil {
 		return nil
@@ -411,7 +411,7 @@ func (tte *TTExtractor) insertCounts() error {
 		default:
 		}
 
-		args := make([]interface{}, len(tte.ngramConf.VertColumns)+5)
+		args := make([]interface{}, len(tte.ngramConf.VertColumns)+6)
 		for i, vc := range tte.ngramConf.VertColumns {
 			args[i] = count.ColumnNgram(vc.Idx, tte.valueDict)
 		}
@@ -432,6 +432,7 @@ func (tte *TTExtractor) insertCounts() error {
 			hasInitCap = hasInitialCap(count.ColumnNgram(lemmaVal.Idx, tte.valueDict))
 		}
 		args[numCol+4] = hasInitCap
+		args[numCol+5] = tte.ngramConf.NgramSize
 		err = ins.Exec(args...)
 		if err != nil {
 			return err
