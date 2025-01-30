@@ -197,7 +197,7 @@ func createSchema(
 		_, dbErr = database.Exec(fmt.Sprintf(
 			"CREATE TABLE %s_colcounts ("+
 				"%s, hash_id VARCHAR(40), corpus_id VARCHAR(%d), "+
-				"count INTEGER, arf INTEGER, initial_cap TINYINT NOT NULL DEFAULT 0, "+
+				"count INTEGER, arf FLOAT, initial_cap TINYINT NOT NULL DEFAULT 0, "+
 				"ngram_size TINYINT NOT NULL, "+
 				"PRIMARY KEY(hash_id)"+
 				")",
