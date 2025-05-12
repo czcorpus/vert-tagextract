@@ -192,7 +192,7 @@ func createSchema(
 	if len(countColumns) > 0 {
 		colDefs := db.GenerateColCountNames(countColumns)
 		for i, c := range colDefs {
-			colDefs[i] = c + fmt.Sprintf(" VARCHAR(%d) COLLATE utf8_bin", db.DfltColcountVarcharSize)
+			colDefs[i] = c + fmt.Sprintf(" VARCHAR(%d) COLLATE utf8mb4_general_ci", db.DfltColcountVarcharSize)
 		}
 		_, dbErr = database.Exec(fmt.Sprintf(
 			"CREATE TABLE %s_colcounts ("+
