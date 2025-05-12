@@ -395,6 +395,13 @@ func (tte *TTExtractor) generateHashID(ng *ptcount.NgramCounter) string {
 	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
+// isTooLongString provides a rough estimation of string
+// length as compared with corresponding VARCHARs
+// in the [corpname]_colcounts table.
+func (tte *TTExtractor) isTooLongString(s string) bool {
+	return len(s) > db.DfltColcountVarcharSize/2
+}
+
 func (tte *TTExtractor) insertCounts() error {
 	colItems := append(
 		db.GenerateColCountNames(tte.ngramConf.VertColumns),
@@ -413,7 +420,12 @@ func (tte *TTExtractor) insertCounts() error {
 
 		args := make([]interface{}, len(tte.ngramConf.VertColumns)+6)
 		for i, vc := range tte.ngramConf.VertColumns {
-			args[i] = count.ColumnNgram(vc.Idx, tte.valueDict)
+			tmp := count.ColumnNgram(vc.Idx, tte.valueDict)
+			if tte.isTooLongString(tmp) {
+				log.Warn().Str("value", tmp).Msg("found too long n-ngram, skipping")
+				continue
+			}
+			args[i] = tmp
 		}
 
 		numCol := len(tte.ngramConf.VertColumns)
