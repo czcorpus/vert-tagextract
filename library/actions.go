@@ -99,6 +99,10 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
 	}
 
+	if conf.DefinesMovingDataWindow() && !appendData {
+		return nil, fmt.Errorf("ExtractData configuration specifies a moving data window but the *append* argument is false")
+	}
+
 	go func() {
 		defer dbWriter.Close()
 		defer close(statusChan)
@@ -110,6 +114,23 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 			wg.Done()
 			sendErrStatus(statusChan, "", err)
 			return
+		}
+		if conf.DefinesMovingDataWindow() {
+			log.Info().
+				Str("oldestPreserve", *conf.OldestDatetimePreserve).
+				Msg("moving liveattrs data window")
+			numRemoved, err := dbWriter.RemoveRecordsOlderThan(
+				*conf.OldestDatetimePreserve, *conf.DatetimeAttr)
+			if err != nil {
+				wg.Done()
+				sendErrStatus(statusChan, "", err)
+				return
+
+			} else {
+				log.Info().
+					Int("numRemoved", numRemoved).
+					Msg("removed old liveattrs records")
+			}
 		}
 		for _, verticalFile := range filesToProc {
 			log.Info().Str("vertical", verticalFile).Msg("Processing vertical")

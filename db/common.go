@@ -156,6 +156,12 @@ type Writer interface {
 	DatabaseExists() bool
 	Initialize(appendMode bool) error
 	PrepareInsert(table string, attrs []string) (InsertOperation, error)
+
+	// RemoveRecordsOlderThan remove all the records with date less than
+	// the provided one using attr for comparison. Method should return
+	// number of removed items. No matching records situation should not
+	// return an error.
+	RemoveRecordsOlderThan(date, attr string) (int, error)
 	Commit() error
 	Rollback() error
 	Close()

@@ -125,6 +125,17 @@ type VTEConf struct {
 	// as one.
 	VerticalFiles []string `json:"verticalFiles,omitempty"`
 
+	// OldestDatetimePreserve allows for a "moving window" data
+	// processing where we regularly remove old records and add some
+	// new ones. This value specifies which oldest date should
+	// be preserved. Please note that this also requires setting
+	// the DatetimeAttr
+	OldestDatetimePreserve *string `json:"oldestDatetimePreserve"`
+
+	// DatetimeAttr is used along with OldestDatetimePreserve
+	// so vert-tagextract knows by which attribute to filter the values.
+	DatetimeAttr *string `json:"datetimeAttr"`
+
 	DB db.Conf `json:"db"`
 
 	Encoding    string          `json:"encoding"`
@@ -135,6 +146,11 @@ type VTEConf struct {
 	Filter FilterConf `json:"filter"`
 
 	Verbosity int `json:"verbosity"`
+}
+
+func (c *VTEConf) DefinesMovingDataWindow() bool {
+	return c.DatetimeAttr != nil && *c.DatetimeAttr != "" &&
+		c.OldestDatetimePreserve != nil && *c.OldestDatetimePreserve != ""
 }
 
 func (c *VTEConf) HasConfiguredFilter() bool {

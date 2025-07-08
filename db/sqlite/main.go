@@ -116,6 +116,10 @@ func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation
 	return &db.Insert{Stmt: stmt}, nil
 }
 
+func (w *Writer) RemoveRecordsOlderThan(date, attr string) (int, error) {
+	return 0, fmt.Errorf("RemoveRecordsOlderThan not implemented yet in SQLite variant")
+}
+
 func (w *Writer) Commit() error {
 	return w.tx.Commit()
 }
