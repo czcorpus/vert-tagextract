@@ -125,14 +125,14 @@ type VTEConf struct {
 	// as one.
 	VerticalFiles []string `json:"verticalFiles,omitempty"`
 
-	// OldestDatetimePreserve allows for a "moving window" data
+	// RemoveEntriesBeforeDate allows for a "moving window" data
 	// processing where we regularly remove old records and add some
 	// new ones. This value specifies which oldest date should
 	// be preserved. Please note that this also requires setting
 	// the DatetimeAttr
-	OldestDatetimePreserve *string `json:"oldestDatetimePreserve"`
+	RemoveEntriesBeforeDate *string `json:"removeEntriesBeforeDate"`
 
-	// DatetimeAttr is used along with OldestDatetimePreserve
+	// DatetimeAttr is used along with RemoveEntriesBeforeDate
 	// so vert-tagextract knows by which attribute to filter the values.
 	DatetimeAttr *string `json:"datetimeAttr"`
 
@@ -149,8 +149,17 @@ type VTEConf struct {
 }
 
 func (c *VTEConf) DefinesMovingDataWindow() bool {
-	return c.DatetimeAttr != nil && *c.DatetimeAttr != "" &&
-		c.OldestDatetimePreserve != nil && *c.OldestDatetimePreserve != ""
+	return c.RemoveEntriesBeforeDate != nil && *c.RemoveEntriesBeforeDate != ""
+}
+
+func (c *VTEConf) Validate() error {
+	if c.VerticalFile != "" && len(c.VerticalFiles) > 0 {
+		return fmt.Errorf("cannot use verticalFile and verticalFiles at the same time")
+	}
+	if c.RemoveEntriesBeforeDate != nil && c.DatetimeAttr == nil {
+		return fmt.Errorf("moving data window defined via *removeEntriesBeforeDate*, but no *datetimeAttr* found")
+	}
+	return nil
 }
 
 func (c *VTEConf) HasConfiguredFilter() bool {

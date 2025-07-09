@@ -131,7 +131,7 @@ func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation
 func (w *Writer) RemoveRecordsOlderThan(date string, attr string) (int, error) {
 	res, err := w.tx.Exec(
 		fmt.Sprintf(
-			"DELETE FROM %s%s WHERE STR_TO_DATE(%s, '%%Y-%%m-%%d') > ?",
+			"DELETE FROM %s%s WHERE STR_TO_DATE(%s, '%%Y-%%m-%%d') < ?",
 			w.groupedCorpusName, laTableSuffix, attr),
 		date,
 	)
