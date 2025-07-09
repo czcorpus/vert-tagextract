@@ -64,9 +64,17 @@ func determineLineReportingStep(filePath string) int {
 // based on the specification in the 'conf' argument.
 // The returned status channel is for getting extraction status information including possible errors
 func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan proc.Status, error) {
+
+	if err := conf.Validate(); err != nil {
+		return nil, fmt.Errorf("ExtractData failed: %w", err)
+	}
+	if conf.DefinesMovingDataWindow() && !appendData {
+		return nil, fmt.Errorf("ExtractData configuration specifies a moving data window but the *append* argument is false")
+	}
 	if err := conf.Ngrams.UpgradeLegacy(); err != nil {
 		return nil, fmt.Errorf("failed to process file: %w", err)
 	}
+
 	statusChan := make(chan proc.Status)
 	dbWriter, err := factory.NewDatabaseWriter(conf)
 	if err != nil {
@@ -79,24 +87,26 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 	}
 
 	var filesToProc []string
-	if conf.VerticalFile != "" && len(conf.VerticalFiles) > 0 {
-		return nil, fmt.Errorf("cannot use verticalFile and verticalFiles at the same time")
-	}
-	if conf.VerticalFile != "" && (fs.IsFile(conf.VerticalFile) || strings.HasPrefix(conf.VerticalFile, "|")) {
-		filesToProc = []string{conf.VerticalFile}
 
-	} else if conf.VerticalFile != "" && fs.IsDir(conf.VerticalFile) {
-		var err error
-		filesToProc, err = fs.ListFilesInDir(conf.VerticalFile)
-		if err != nil {
-			return nil, err
+	for _, path := range conf.GetDefinedVerticals() {
+		if path == "" {
+			log.Warn().Msg("empty path found in list of vertical files to process in ExtractData, skipping")
+			continue
 		}
+		if fs.IsFile(path) || strings.HasPrefix(path, "|") {
+			filesToProc = append(filesToProc, path)
 
-	} else if len(conf.VerticalFiles) > 0 && fs.AllFilesExist(conf.VerticalFiles) {
-		filesToProc = conf.VerticalFiles
+		} else if fs.IsDir(path) {
+			tmp, err := fs.ListFilesInDir(conf.VerticalFile)
+			if err != nil {
+				return nil, fmt.Errorf("ExtractData failed: %w", err)
+			}
+			filesToProc = append(filesToProc, tmp...)
+		}
+	}
 
-	} else {
-		return nil, fmt.Errorf("neither verticalFile nor verticalFiles provide a valid data source")
+	if len(filesToProc) == 0 {
+		return nil, fmt.Errorf("ExtractData failed - no valid vertical files found to process")
 	}
 
 	go func() {
@@ -110,6 +120,24 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 			wg.Done()
 			sendErrStatus(statusChan, "", err)
 			return
+		}
+
+		if conf.DefinesMovingDataWindow() {
+			log.Info().
+				Str("oldestPreserve", *conf.RemoveEntriesBeforeDate).
+				Msg("moving liveattrs data window")
+			numRemoved, err := dbWriter.RemoveRecordsOlderThan(
+				*conf.RemoveEntriesBeforeDate, *conf.DatetimeAttr)
+			if err != nil {
+				wg.Done()
+				sendErrStatus(statusChan, "", err)
+				return
+
+			} else {
+				log.Info().
+					Int("numRemoved", numRemoved).
+					Msg("removed old liveattrs records")
+			}
 		}
 		for _, verticalFile := range filesToProc {
 			log.Info().Str("vertical", verticalFile).Msg("Processing vertical")

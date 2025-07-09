@@ -63,6 +63,10 @@ func (nw *NullWriter) Rollback() error {
 
 func (nw *NullWriter) Close() {}
 
+func (nw *NullWriter) RemoveRecordsOlderThan(date, attr string) (int, error) {
+	return 0, fmt.Errorf("no valid database writer installed")
+}
+
 func NewDatabaseWriter(conf *cnf.VTEConf) (db.Writer, error) {
 	switch conf.DB.Type {
 	case "sqlite":
