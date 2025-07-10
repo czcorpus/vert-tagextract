@@ -29,6 +29,8 @@ const (
 	DfltColcountVarcharSize = 255
 )
 
+// ---------------------------
+
 type Insert struct {
 	Stmt *sql.Stmt
 }
@@ -43,6 +45,8 @@ func (ins *Insert) Exec(values ...any) error {
 	return err
 }
 
+// ---------------------------
+
 // SelfJoinConf contains information about aligned
 // structural attributes (e.g. sentences from two
 // languages).
@@ -55,7 +59,24 @@ func (c *SelfJoinConf) IsConfigured() bool {
 	return c.GeneratorFn != ""
 }
 
-// ---
+// ---------------------------
+
+// ImportStructattrName takes either database (struct_attr) or Manatee
+// (struct.name) formatted structural attribute name and returns
+// the datatabase-formatted variant.
+//
+// Note: in APIs using vert-tagextract we expect that users can provide
+// both formats in respective arguments. But please be aware that this
+// behavior is possible only as long as structure names contain no underscore
+// character (as otherwise, we wouldn't be able to decide where to split the name)
+func ImportStructattrName(val string) string {
+	if strings.Contains(val, ".") {
+		return strings.Replace(val, ".", "_", 1)
+	}
+	return val
+}
+
+// ---------------------------
 
 // BibViewConf is a sub-configuration for
 // bibliographic data.
@@ -86,6 +107,8 @@ func (c *BibViewConf) IDAttrElements() (string, string) {
 	return "", ""
 }
 
+// ---------------------------
+
 type Conf struct {
 	Type           string   `json:"type"`
 	Name           string   `json:"name"`
@@ -94,6 +117,8 @@ type Conf struct {
 	Password       string   `json:"password"`
 	PreconfQueries []string `json:"preconfSettings"`
 }
+
+// ---------------------------
 
 type VertColumn struct {
 	Idx   int    `json:"idx"`
@@ -151,6 +176,8 @@ func (vc VertColumns) MaxColumn() int {
 	}
 	return maxc
 }
+
+// ---------------------------
 
 type Writer interface {
 	DatabaseExists() bool
