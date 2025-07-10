@@ -97,6 +97,8 @@ func (nc *NgramConf) IsZero() bool {
 		len(nc.AttrColumns) == 0 && nc.NgramSize == 0
 }
 
+// --------------------------
+
 // VTEConf holds configuration for a concrete
 // data extraction task.
 type VTEConf struct {
@@ -134,7 +136,7 @@ type VTEConf struct {
 
 	// DatetimeAttr is used along with RemoveEntriesBeforeDate
 	// so vert-tagextract knows by which attribute to filter the values.
-	DatetimeAttr *string `json:"datetimeAttr"`
+	DatetimeAttr *db.DateTimeAttr `json:"datetimeAttr"`
 
 	DB db.Conf `json:"db"`
 

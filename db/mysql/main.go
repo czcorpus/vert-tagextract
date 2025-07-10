@@ -128,12 +128,12 @@ func (w *Writer) PrepareInsert(table string, attrs []string) (db.InsertOperation
 	return &db.Insert{Stmt: stmt}, nil
 }
 
-func (w *Writer) RemoveRecordsOlderThan(date string, attr string) (int, error) {
+func (w *Writer) RemoveRecordsOlderThan(date string, attr db.DateTimeAttr) (int, error) {
 	res, err := w.tx.Exec(
 		fmt.Sprintf(
-			"DELETE FROM %s%s WHERE STR_TO_DATE(%s, '%%Y-%%m-%%d') < ?",
-			w.groupedCorpusName, laTableSuffix, attr),
-		date,
+			"DELETE FROM %s%s WHERE STR_TO_DATE(?, '%%Y-%%m-%%d') < ?",
+			w.groupedCorpusName, laTableSuffix),
+		attr.String(), date,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to move data window: %w", err)
