@@ -63,14 +63,14 @@ func (nw *NullWriter) Rollback() error {
 
 func (nw *NullWriter) Close() {}
 
-func (nw *NullWriter) RemoveRecordsOlderThan(date, attr string) (int, error) {
+func (nw *NullWriter) RemoveRecordsOlderThan(date string, attr db.DateAttr) (int, error) {
 	return 0, fmt.Errorf("no valid database writer installed")
 }
 
 func NewDatabaseWriter(conf *cnf.VTEConf) (db.Writer, error) {
 	switch conf.DB.Type {
 	case "sqlite":
-		db := &sqlite.Writer{
+		dbConn := &sqlite.Writer{
 			Path:           conf.DB.Name,
 			PreconfQueries: conf.DB.PreconfQueries,
 			Structures:     conf.Structures,
@@ -79,7 +79,7 @@ func NewDatabaseWriter(conf *cnf.VTEConf) (db.Writer, error) {
 			BibViewConf:    conf.BibView,
 			VertColumns:    conf.Ngrams.VertColumns,
 		}
-		return db, nil
+		return dbConn, nil
 	case "mysql":
 		return mysql.NewWriter(conf)
 	default:

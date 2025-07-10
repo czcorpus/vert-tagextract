@@ -61,7 +61,7 @@ func (c *SelfJoinConf) IsConfigured() bool {
 
 // ---------------------------
 
-// ImportStructattrName takes either database (struct_attr) or Manatee
+// importStructattrName takes either database (struct_attr) or Manatee
 // (struct.name) formatted structural attribute name and returns
 // the datatabase-formatted variant.
 //
@@ -69,7 +69,7 @@ func (c *SelfJoinConf) IsConfigured() bool {
 // both formats in respective arguments. But please be aware that this
 // behavior is possible only as long as structure names contain no underscore
 // character (as otherwise, we wouldn't be able to decide where to split the name)
-func ImportStructattrName(val string) string {
+func importStructattrName(val string) string {
 	if strings.Contains(val, ".") {
 		return strings.Replace(val, ".", "_", 1)
 	}
@@ -177,6 +177,23 @@ func (vc VertColumns) MaxColumn() int {
 	return maxc
 }
 
+// --------------------------
+
+// DateAttr represents a name of a structural attribute.
+// It is defined in a way allowing enter both - Manatee format
+// (e.g. 'doc.author') and database format (e.g. 'doc_author').
+// It relies on the fact, that our structures even contain underscore
+// so we can reliably determine where to "cut" the string.
+type DateAttr string
+
+func (attr DateAttr) String() string {
+	return importStructattrName(string(attr))
+}
+
+func (attr DateAttr) RawValue() string {
+	return string(attr)
+}
+
 // ---------------------------
 
 type Writer interface {
@@ -188,7 +205,7 @@ type Writer interface {
 	// the provided one using attr for comparison. Method should return
 	// number of removed items. No matching records situation should not
 	// return an error.
-	RemoveRecordsOlderThan(date, attr string) (int, error)
+	RemoveRecordsOlderThan(date string, attr DateAttr) (int, error)
 	Commit() error
 	Rollback() error
 	Close()

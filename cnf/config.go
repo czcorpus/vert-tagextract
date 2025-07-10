@@ -97,6 +97,8 @@ func (nc *NgramConf) IsZero() bool {
 		len(nc.AttrColumns) == 0 && nc.NgramSize == 0
 }
 
+// --------------------------
+
 // VTEConf holds configuration for a concrete
 // data extraction task.
 type VTEConf struct {
@@ -129,12 +131,12 @@ type VTEConf struct {
 	// processing where we regularly remove old records and add some
 	// new ones. This value specifies which oldest date should
 	// be preserved. Please note that this also requires setting
-	// the DatetimeAttr
+	// the DateAttr
 	RemoveEntriesBeforeDate *string `json:"removeEntriesBeforeDate"`
 
-	// DatetimeAttr is used along with RemoveEntriesBeforeDate
+	// DateAttr is used along with RemoveEntriesBeforeDate
 	// so vert-tagextract knows by which attribute to filter the values.
-	DatetimeAttr *string `json:"datetimeAttr"`
+	DateAttr *db.DateAttr `json:"dateAttr"`
 
 	DB db.Conf `json:"db"`
 
@@ -156,8 +158,8 @@ func (c *VTEConf) Validate() error {
 	if c.VerticalFile != "" && len(c.VerticalFiles) > 0 {
 		return fmt.Errorf("cannot use verticalFile and verticalFiles at the same time")
 	}
-	if c.RemoveEntriesBeforeDate != nil && c.DatetimeAttr == nil {
-		return fmt.Errorf("moving data window defined via *removeEntriesBeforeDate*, but no *datetimeAttr* found")
+	if c.RemoveEntriesBeforeDate != nil && c.DateAttr == nil {
+		return fmt.Errorf("moving data window defined via *removeEntriesBeforeDate*, but no *dateAttr* found")
 	}
 	return nil
 }
