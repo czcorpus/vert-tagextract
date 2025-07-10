@@ -63,7 +63,7 @@ func (nw *NullWriter) Rollback() error {
 
 func (nw *NullWriter) Close() {}
 
-func (nw *NullWriter) RemoveRecordsOlderThan(date string, attr db.DateTimeAttr) (int, error) {
+func (nw *NullWriter) RemoveRecordsOlderThan(date string, attr db.DateAttr) (int, error) {
 	return 0, fmt.Errorf("no valid database writer installed")
 }
 

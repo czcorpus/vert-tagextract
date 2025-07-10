@@ -127,7 +127,7 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 				Str("oldestPreserve", *conf.RemoveEntriesBeforeDate).
 				Msg("moving liveattrs data window")
 			numRemoved, err := dbWriter.RemoveRecordsOlderThan(
-				*conf.RemoveEntriesBeforeDate, *conf.DatetimeAttr)
+				*conf.RemoveEntriesBeforeDate, *conf.DateAttr)
 			if err != nil {
 				wg.Done()
 				sendErrStatus(statusChan, "", err)

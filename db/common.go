@@ -179,18 +179,18 @@ func (vc VertColumns) MaxColumn() int {
 
 // --------------------------
 
-// DateTimeAttr represents a name of a structural attribute.
+// DateAttr represents a name of a structural attribute.
 // It is defined in a way allowing enter both - Manatee format
 // (e.g. 'doc.author') and database format (e.g. 'doc_author').
 // It relies on the fact, that our structures even contain underscore
 // so we can reliably determine where to "cut" the string.
-type DateTimeAttr string
+type DateAttr string
 
-func (attr DateTimeAttr) String() string {
+func (attr DateAttr) String() string {
 	return importStructattrName(string(attr))
 }
 
-func (attr DateTimeAttr) RawValue() string {
+func (attr DateAttr) RawValue() string {
 	return string(attr)
 }
 
@@ -205,7 +205,7 @@ type Writer interface {
 	// the provided one using attr for comparison. Method should return
 	// number of removed items. No matching records situation should not
 	// return an error.
-	RemoveRecordsOlderThan(date string, attr DateTimeAttr) (int, error)
+	RemoveRecordsOlderThan(date string, attr DateAttr) (int, error)
 	Commit() error
 	Rollback() error
 	Close()
