@@ -19,6 +19,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -27,6 +28,10 @@ const (
 	// for VARCHARs used for "colcounts" (which is a base
 	// for n-grams)
 	DfltColcountVarcharSize = 255
+)
+
+var (
+	allowedStructattrRegexp = regexp.MustCompile(`^[a-z]+[._][a-z][a-z_]*$`)
 )
 
 // ---------------------------
@@ -188,6 +193,10 @@ type DateAttr string
 
 func (attr DateAttr) String() string {
 	return importStructattrName(string(attr))
+}
+
+func (attr DateAttr) Validate() bool {
+	return allowedStructattrRegexp.MatchString(string(attr))
 }
 
 func (attr DateAttr) RawValue() string {
