@@ -102,6 +102,9 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 				return nil, fmt.Errorf("ExtractData failed: %w", err)
 			}
 			filesToProc = append(filesToProc, tmp...)
+
+		} else {
+			log.Warn().Str("path", path).Msg("invalid path encountered in vertical file list")
 		}
 	}
 
