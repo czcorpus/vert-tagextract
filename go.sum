@@ -45,8 +45,8 @@ github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
-github.com/tomachalek/vertigo/v6 v6.0.1 h1:h6qw3DHJawwfbQwNj49bQZ/zrgccRsIyG79DbnI4OTI=
-github.com/tomachalek/vertigo/v6 v6.0.1/go.mod h1:mqeSnb8I0J67q7hrsGFfP4FaHbxazE0lh5t6JKYPTpw=
+github.com/tomachalek/vertigo/v6 v6.1.1 h1:6P/7RzRxZXsreu1Pxf7OimXItonw8jlcIPM+l5ZNdjQ=
+github.com/tomachalek/vertigo/v6 v6.1.1/go.mod h1:V9HvKw5GUmTc/LT9yZ7SIo47+Q4DK84cyLgHdtlfffM=
 github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS4MhqMhdFk5YI=
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:a1lVb/DtPvCB8fslRZhAngC2+aY1QWCk3Cedj/Gdt08=
 golang.org/x/arch v0.13.0 h1:KCkqVVV1kGg0X87TFysjCJ8MxtZEIU4Ja/yXGeoECdA=
