@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -30,8 +29,6 @@ import (
 	"github.com/czcorpus/vert-tagextract/v3/db/factory"
 	"github.com/czcorpus/vert-tagextract/v3/fs"
 	"github.com/czcorpus/vert-tagextract/v3/proc"
-
-	"github.com/tomachalek/vertigo/v6"
 )
 
 func sendErrStatus(statusChan chan proc.Status, file string, err error) {
@@ -45,11 +42,15 @@ func sendErrStatus(statusChan chan proc.Status, file string, err error) {
 // determineLineReportingStep
 // note: the numbers 0.02, 20 are just rough empirical values to determine
 // number of lines based on "average" CNC corpus
-func determineLineReportingStep(filePath string) int {
-	size := fs.FileSize(filePath)
-	tmp := float64(size) * 0.02
-	if strings.HasSuffix(filePath, ".gz") || strings.HasSuffix(filePath, ".tgz") {
-		tmp *= 20
+func determineLineReportingStep(filePaths []string) int {
+	var size int64
+	for _, filePath := range filePaths {
+		tmp := fs.FileSize(filePath)
+		tmp = int64(float64(size) * 0.02)
+		if strings.HasSuffix(filePath, ".gz") || strings.HasSuffix(filePath, ".tgz") {
+			tmp *= 20
+		}
+		size += tmp
 	}
 	step := 100
 	for ; step < 1000000000; step *= 10 {
@@ -115,12 +116,9 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 	go func() {
 		defer dbWriter.Close()
 		defer close(statusChan)
-		var wg sync.WaitGroup
-		wg.Add(len(filesToProc))
 
 		err := dbWriter.Initialize(appendData)
 		if err != nil {
-			wg.Done()
 			sendErrStatus(statusChan, "", err)
 			return
 		}
@@ -132,7 +130,6 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 			numRemoved, err := dbWriter.RemoveRecordsOlderThan(
 				*conf.RemoveEntriesBeforeDate, *conf.DateAttr)
 			if err != nil {
-				wg.Done()
 				sendErrStatus(statusChan, "", err)
 				return
 
@@ -142,54 +139,35 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 					Msg("removed old liveattrs records")
 			}
 		}
-		for _, verticalFile := range filesToProc {
-			log.Info().Str("vertical", verticalFile).Msg("Processing vertical")
-			parserConf := &vertigo.ParserConf{
-				InputFilePath:         verticalFile,
-				StructAttrAccumulator: "nil",
-				Encoding:              conf.Encoding,
-				LogProgressEachNth:    determineLineReportingStep(verticalFile),
-			}
 
-			var fn colgen.AlignedColGenFn
-			if conf.SelfJoin.IsConfigured() {
-				fn = func(args map[string]interface{}) (ident string, err error) {
-					var colgenFn colgen.AlignedUnboundColGenFn
-					defer func() {
-						if r := recover(); r != nil {
-							ident = ""
-							err = fmt.Errorf("%v", r)
-						}
-					}()
-					colgenFn, err = colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
-					if err != nil {
-						return
+		var fn colgen.AlignedColGenFn
+		if conf.SelfJoin.IsConfigured() {
+			fn = func(args map[string]any) (ident string, err error) {
+				var colgenFn colgen.AlignedUnboundColGenFn
+				defer func() {
+					if r := recover(); r != nil {
+						ident = ""
+						err = fmt.Errorf("%v", r)
 					}
-					ident, err = colgenFn(args, conf.SelfJoin.ArgColumns)
+				}()
+				colgenFn, err = colgen.GetFuncByName(conf.SelfJoin.GeneratorFn)
+				if err != nil {
 					return
 				}
-			}
-
-			subStatusChan := make(chan proc.Status, 10)
-			go func() {
-				defer wg.Done()
-				for upd := range subStatusChan {
-					upd.File = verticalFile
-					statusChan <- upd
-				}
-			}()
-			tte, err := proc.NewTTExtractor(ctx, dbWriter, conf, fn, subStatusChan)
-			if err != nil {
-				close(subStatusChan)
-				sendErrStatus(statusChan, "", err)
-			}
-			err = tte.Run(parserConf)
-			close(subStatusChan)
-			if err != nil {
-				sendErrStatus(statusChan, verticalFile, err)
+				ident, err = colgenFn(args, conf.SelfJoin.ArgColumns)
+				return
 			}
 		}
-		wg.Wait()
+
+		tte, err := proc.NewTTExtractor(ctx, dbWriter, conf, fn, statusChan)
+		if err != nil {
+			sendErrStatus(statusChan, "", err)
+		}
+		err = tte.Run(filesToProc, conf.Encoding, determineLineReportingStep(filesToProc))
+		if err != nil {
+			sendErrStatus(statusChan, "", err)
+		}
+
 		err = dbWriter.Commit()
 		if err != nil {
 			sendErrStatus(statusChan, "", err)

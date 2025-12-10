@@ -156,7 +156,7 @@ func (c *NgramCounter) UniqueID() string {
 		return ""
 	}
 	ans := make([]string, len(c.tokens[0].Columns))
-	for i := 0; i < len(ans); i++ {
+	for i := range len(ans) {
 		ans[i] = c.columnNgramNumeric(i)
 	}
 	return strings.Join(ans, " ")

@@ -88,7 +88,7 @@ type TTExtractor struct {
 	structures         map[string][]string
 	attrNames          []string
 	colgenFn           colgen.AlignedColGenFn
-	currAtomAttrs      map[string]interface{}
+	currAtomAttrs      map[string]any
 	ngramConf          *cnf.NgramConf
 	currSentence       [][]int
 	valueDict          *ptcount.WordDict
@@ -418,7 +418,7 @@ func (tte *TTExtractor) insertCounts() error {
 		default:
 		}
 
-		args := make([]interface{}, len(tte.ngramConf.VertColumns)+6)
+		args := make([]any, len(tte.ngramConf.VertColumns)+6)
 		for i, vc := range tte.ngramConf.VertColumns {
 			tmp := count.ColumnNgram(vc.Idx, tte.valueDict)
 			if tte.isTooLongString(tmp) {
@@ -473,16 +473,26 @@ func (tte *TTExtractor) insertCounts() error {
 // The whole process runs within a transaction which
 // makes sqlite3 inserts a few orders of magnitude
 // faster.
-func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
+func (tte *TTExtractor) Run(filesToProc []string, encoding string, logProgressEachNth int) error {
+	vertScanner, err := NewMultiFileScanner(filesToProc...)
+	if err != nil {
+		return fmt.Errorf("failed to run TTExtractor: %w", err)
+	}
+	parserConf := &vertigo.ParserConf{
+		StructAttrAccumulator: "nil",
+		Encoding:              encoding,
+		LogProgressEachNth:    logProgressEachNth,
+	}
+
 	log.Info().Msg("using zero-based indexing when reporting line errors")
-	log.Info().Str("file", conf.InputFilePath).Msg("Starting to process vertical file")
+	log.Info().Str("file", vertScanner.FilesID()).Msg("Starting to process vertical file(s)")
 	tte.attrNames = tte.generateAttrList()
-	var err error
+
 	tte.docInsert, err = tte.database.PrepareInsert("liveattrs_entry", tte.attrNames)
 	if err != nil {
 		return err
 	}
-	parserErr := vertigo.ParseVerticalFile(tte.ctx, conf, tte)
+	parserErr := vertigo.ParseVerticalFromScanner(tte.ctx, vertScanner, parserConf, tte)
 	if parserErr != nil {
 		tte.database.Rollback()
 		tte.statusChan <- Status{
@@ -505,13 +515,20 @@ func (tte *TTExtractor) Run(conf *vertigo.ParserConf) error {
 				tte.WordDict(),
 				tte.atomStruct,
 			)
-			parserErr := vertigo.ParseVerticalFile(tte.ctx, conf, arfCalc)
+			vertScanner, err := NewMultiFileScanner(filesToProc...)
+			if err != nil {
+				return fmt.Errorf("failed to run TTExtractor: %w", err)
+			}
+			parserErr := vertigo.ParseVerticalFromScanner(tte.ctx, vertScanner, parserConf, arfCalc)
 			if parserErr != nil {
 				return fmt.Errorf("ERROR: %s", parserErr)
 			}
 			arfCalc.Finalize()
 		}
-		log.Info().Msg("Saving defined positional attributes counts into the database")
+		log.Info().
+			Int("numColCounts", len(tte.colCounts)).
+			Int("valueDictSize", tte.valueDict.Size()).
+			Msg("Saving defined positional attributes counts into the database")
 		err = tte.insertCounts()
 		if err != nil {
 			return err

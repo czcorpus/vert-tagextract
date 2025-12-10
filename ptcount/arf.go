@@ -140,7 +140,7 @@ func (arfc *ARFCalculator) ProcStructClose(strc *vertigo.StructureClose, line in
 }
 
 // Finalize performs some final calculations on obtained
-// (and continuouslz calculated) data. It is required to
+// (and continuously calculated) data. It is required to
 // to obtain correct ARF results.
 func (arfc *ARFCalculator) Finalize() {
 	for k, val := range arfc.counts {
