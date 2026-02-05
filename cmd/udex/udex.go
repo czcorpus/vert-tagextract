@@ -19,6 +19,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"hash/fnv"
@@ -28,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/czcorpus/cnc-gokit/collections"
+	"github.com/czcorpus/vert-tagextract/v3/ud"
 )
 
 var (
@@ -37,12 +38,6 @@ var (
 	build     string
 	gitCommit string
 )
-
-type feat [2]string
-
-func (f feat) Key() string {
-	return f[0]
-}
 
 func hashString(s string) uint64 {
 	h := fnv.New64a()
@@ -55,12 +50,12 @@ func printMsg(msg string, args ...any) {
 }
 
 type tokenFeats struct {
-	value []feat
+	value []ud.Feat
 	hash  uint64
 }
 
 func (tf *tokenFeats) MarshalJSON() ([]byte, error) {
-	return sonic.Marshal(tf.value)
+	return json.Marshal(tf.value)
 }
 
 func (tf *tokenFeats) Hash() uint64 {
@@ -91,25 +86,6 @@ func getFeatMultiValue(s string) []string {
 	return strings.Split(s, "||")
 }
 
-func parseFeats(s string) (tokenFeats, error) {
-	items := strings.Split(s, "|")
-	feats := make([]feat, 0, len(items)+1) // +1 is for PoS added by the caller
-	for _, item := range items {
-		tmp := strings.SplitN(item, "=", 2)
-		if len(tmp) == 0 || item == "" {
-			return tokenFeats{}, nil
-		}
-		if len(tmp) == 1 {
-			return tokenFeats{}, fmt.Errorf("unparseable feature '%s'", item)
-		}
-		if tmp[0] == "_" {
-			continue
-		}
-		feats = append(feats, feat{tmp[0], tmp[1]})
-	}
-	return tokenFeats{value: feats}, nil
-}
-
 func parseVerticalLine(line string, posIdx, featIdx int, analyzer *analyzer) []*tokenFeats {
 	analyzer.SetNewLine()
 	positions := strings.Split(line, "\t")
@@ -128,19 +104,19 @@ func parseVerticalLine(line string, posIdx, featIdx int, analyzer *analyzer) []*
 		return []*tokenFeats{}
 	}
 	ans := make([]*tokenFeats, 0, len(posInfo))
-	for i := 0; i < len(posInfo); i++ {
-		pFeats, err := parseFeats(feats[i])
+	for i := range len(posInfo) {
+		pFeats, err := ud.ParseFeats(feats[i])
 		if err != nil {
 			analyzer.AddNamedError(err.Error())
 		}
-		for _, v := range pFeats.value {
+		for _, v := range pFeats {
 			analyzer.AddFeat(v.Key())
 		}
-		pFeats.value = append(pFeats.value, feat{"POS", posInfo[i]})
-		sort.SliceStable(pFeats.value, func(i, j int) bool {
-			return pFeats.value[i].Key() < pFeats.value[j].Key()
+		pFeats = append(pFeats, ud.Feat{"POS", posInfo[i]})
+		sort.SliceStable(pFeats, func(i, j int) bool {
+			return pFeats[i].Key() < pFeats[j].Key()
 		})
-		ans = append(ans, &pFeats)
+		ans = append(ans, &tokenFeats{value: pFeats})
 	}
 	return ans
 }
@@ -245,7 +221,7 @@ func main() {
 		printMsg("failed to load variants: %w", err)
 	}
 	printMsg("proc. time: %01.2fs\n", time.Since(t0).Seconds())
-	out, err := sonic.Marshal(feats)
+	out, err := json.Marshal(feats)
 	if err != nil {
 		printMsg("failed to serialize result: %w", err)
 		os.Exit(6)
