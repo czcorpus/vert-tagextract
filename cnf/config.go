@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/czcorpus/vert-tagextract/v3/db"
+	"github.com/czcorpus/vert-tagextract/v3/livetokens"
 	"github.com/rs/zerolog/log"
 )
 
@@ -115,6 +116,11 @@ type VTEConf struct {
 	// Ngrams - see NgramConf
 	// If omitted then the function is disabled.
 	Ngrams NgramConf `json:"ngrams"`
+
+	// LiveTokens configures a functionality for interactive
+	// search withing low-cardinality tone attributes
+	// (e.g. UD feats, pos, deprel)
+	LiveTokens livetokens.AttrList `json:"liveTokens"`
 
 	// VerticalFile can be either a path to a single file
 	// or a path to a directory containing multiple vertical
