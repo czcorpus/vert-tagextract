@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -34,8 +35,6 @@ import (
 	"github.com/czcorpus/vert-tagextract/v3/library"
 
 	"github.com/tomachalek/vertigo/v6"
-
-	"github.com/bytedance/sonic/encoder"
 )
 
 var (
@@ -62,7 +61,7 @@ func dumpNewConf(corpusName string) {
 	conf.BibView.IDAttr = "doc_id"
 	conf.SelfJoin.ArgColumns = []string{}
 	conf.VerticalFiles = []string{"./vertical"}
-	b, err := encoder.EncodeIndented(conf, "", "  ", encoder.SortMapKeys)
+	b, err := json.Marshal(conf)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to dump a new config")
 	}

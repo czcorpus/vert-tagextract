@@ -17,10 +17,10 @@
 package cnf
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
-	"github.com/bytedance/sonic"
 	"github.com/czcorpus/vert-tagextract/v3/db"
 	"github.com/rs/zerolog/log"
 )
@@ -198,7 +198,7 @@ func LoadConf(confPath string) (*VTEConf, error) {
 		return nil, err
 	}
 	var conf VTEConf
-	err2 := sonic.Unmarshal(rawData, &conf)
+	err2 := json.Unmarshal(rawData, &conf)
 	if err2 != nil {
 		return nil, err2
 	}
