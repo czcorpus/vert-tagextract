@@ -153,30 +153,76 @@ func (s *Searcher) FilterTokens(ctx context.Context, corpus string, attrFilter [
 // GetAvailableValues returns all possible values for each attribute and UD feature
 // that are valid given the current filter constraints. This is useful for building
 // interactive UIs where users progressively narrow down their search.
+// Each filter entry can contain multiple values which are treated as disjunction
+// (attr = v1 OR attr = v2 OR ...).
 func (s *Searcher) GetAvailableValues(
 	ctx context.Context,
 	corpus string,
 	attrFilter []AttrAndVal,
-	featFilter []ud.Feat,
+	featFilter []AttrAndVal,
 ) (AvailableValues, error) {
 	ans := AvailableValues{
 		Attrs:   make(map[string][]string),
 		UDFeats: make(map[string][]string),
 	}
 
-	// Build WHERE clause from filters
+	// Build WHERE clause from attribute filters (multiple values = OR)
 	values := make([]any, 0, len(featFilter)*2+len(attrFilter))
 	whereClauses := make([]string, 0, len(attrFilter))
 	for _, f := range attrFilter {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = ?", f.Name))
-		values = append(values, f.Value)
+		if len(f.Values) == 0 {
+			continue
+		}
+		if len(f.Values) == 1 {
+			whereClauses = append(whereClauses, fmt.Sprintf("%s = ?", f.Name))
+			values = append(values, f.Values[0])
+		} else {
+			placeholders := make([]string, len(f.Values))
+			for i, v := range f.Values {
+				placeholders[i] = "?"
+				values = append(values, v)
+			}
+			whereClauses = append(
+				whereClauses,
+				fmt.Sprintf("%s IN (%s)", f.Name, strings.Join(placeholders, ", ")),
+			)
+		}
 	}
 
+	// Build UD feature filter conditions (multiple values per feature = OR)
 	var featFilterSQL strings.Builder
 	for _, ff := range featFilter {
-		s, v := s.createUDFeatCondition(corpus, ff)
-		featFilterSQL.WriteString(s)
-		values = append(values, v...)
+		if len(ff.Values) == 0 {
+			continue
+		}
+		if len(ff.Values) == 1 {
+			featFilterSQL.WriteString(
+				" AND EXISTS ( " +
+					"SELECT 1 " +
+					fmt.Sprintf("FROM %s_livetokens_udfeats f2 ", corpus) +
+					"WHERE f2.token_id = t.id " +
+					"AND f2.feat = ? AND f2.value = ? " +
+					") ",
+			)
+			values = append(values, ff.Name, ff.Values[0])
+		} else {
+			placeholders := make([]string, len(ff.Values))
+			for i := range ff.Values {
+				placeholders[i] = "?"
+			}
+			featFilterSQL.WriteString(
+				" AND EXISTS ( " +
+					"SELECT 1 " +
+					fmt.Sprintf("FROM %s_livetokens_udfeats f2 ", corpus) +
+					"WHERE f2.token_id = t.id " +
+					fmt.Sprintf("AND f2.feat = ? AND f2.value IN (%s) ", strings.Join(placeholders, ", ")) +
+					") ",
+			)
+			values = append(values, ff.Name)
+			for _, v := range ff.Values {
+				values = append(values, v)
+			}
+		}
 	}
 
 	whereSQL := "1=1"

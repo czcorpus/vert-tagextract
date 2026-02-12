@@ -108,7 +108,7 @@ func runSearch(args []string) {
 				log.Fatal().Msgf("invalid attr filter format: %s", pair)
 			}
 			attrFilters = append(attrFilters, livetokens.AttrAndVal{
-				Attr:  livetokens.Attr{Name: parts[0]},
+				Name:  parts[0],
 				Value: parts[1],
 			})
 		}
@@ -184,21 +184,24 @@ func runValues(args []string) {
 				log.Fatal().Msgf("invalid attr filter format: %s", pair)
 			}
 			attrFilters = append(attrFilters, livetokens.AttrAndVal{
-				Attr:  livetokens.Attr{Name: parts[0]},
-				Value: parts[1],
+				Name:   parts[0],
+				Values: []string{parts[1]},
 			})
 		}
 	}
 
 	// Parse UD feature filters
-	var featFilters []ud.Feat
+	var featFilters []livetokens.AttrAndVal
 	if *featFilter != "" {
 		for _, pair := range strings.Split(*featFilter, ",") {
 			parts := strings.SplitN(pair, "=", 2)
 			if len(parts) != 2 {
 				log.Fatal().Msgf("invalid feat filter format: %s", pair)
 			}
-			featFilters = append(featFilters, ud.Feat{parts[0], parts[1]})
+			featFilters = append(featFilters, livetokens.AttrAndVal{
+				Name:   parts[0],
+				Values: []string{parts[1]},
+			})
 		}
 	}
 

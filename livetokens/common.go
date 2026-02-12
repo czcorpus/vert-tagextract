@@ -56,6 +56,7 @@ type AttrEntry struct {
 // -------
 
 type AttrAndVal struct {
-	Attr
-	Value string `json:"value"`
+	Name   string   `json:"attr"`
+	Value  string   `json:"value"`
+	Values []string `json:"values"`
 }
