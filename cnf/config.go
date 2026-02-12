@@ -119,7 +119,7 @@ type VTEConf struct {
 
 	// LiveTokens configures a functionality for interactive
 	// search withing low-cardinality tone attributes
-	// (e.g. UD feats, pos, deprel)
+	// (e.g. UD feats, pos, deprel).
 	LiveTokens livetokens.AttrList `json:"liveTokens"`
 
 	// VerticalFile can be either a path to a single file
