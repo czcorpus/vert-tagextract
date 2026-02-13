@@ -39,8 +39,9 @@ type SearchResult struct {
 // AvailableValues holds all possible values for each attribute and UD feature
 // given the current filter constraints.
 type AvailableValues struct {
-	Attrs   map[string][]string `json:"attrs"`
-	UDFeats map[string][]string `json:"udFeats"`
+	Attrs    map[string][]string `json:"attrs"`
+	UDFeats  map[string][]string `json:"udFeats"`
+	AttrConf AttrList            `json:"attrConf"`
 }
 
 type Searcher struct {
@@ -162,8 +163,9 @@ func (s *Searcher) GetAvailableValues(
 	featFilter []AttrAndVal,
 ) (AvailableValues, error) {
 	ans := AvailableValues{
-		Attrs:   make(map[string][]string),
-		UDFeats: make(map[string][]string),
+		Attrs:    make(map[string][]string),
+		UDFeats:  make(map[string][]string),
+		AttrConf: s.Attrs,
 	}
 
 	// Build WHERE clause from attribute filters (multiple values = OR)
