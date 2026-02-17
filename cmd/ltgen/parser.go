@@ -34,9 +34,10 @@ import (
 // -------
 
 type ltgConf struct {
-	CorpusID string              `json:"corpusId"`
-	Attrs    livetokens.AttrList `json:"attrs"`
-	DB       db.Conf             `json:"db"`
+	CorpusID     string              `json:"corpusId"`
+	Attrs        livetokens.AttrList `json:"attrs"`
+	DB           db.Conf             `json:"db"`
+	VerticalPath string              `json:"verticalPath"`
 }
 
 func LoadConf(path string) (ltgConf, error) {
@@ -183,12 +184,12 @@ func (ltg *LTUDGen) ProcStructClose(st *vertigo.StructureClose, line int, err er
 	return nil
 }
 
-func ParseFileUD(ctx context.Context, conf ltgConf, db *sql.DB, verticalFilePath string) error {
+func ParseFileUD(ctx context.Context, conf ltgConf, db *sql.DB) error {
 	parserConf := &vertigo.ParserConf{
 		StructAttrAccumulator: "nil",
 		Encoding:              "utf-8",
 		LogProgressEachNth:    100000, // TODO configurable
-		InputFilePath:         verticalFilePath,
+		InputFilePath:         conf.VerticalPath,
 	}
 
 	tx, err := db.BeginTx(ctx, nil)

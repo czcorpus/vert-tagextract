@@ -26,13 +26,71 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/czcorpus/vert-tagextract/v3/cnf"
+	"github.com/czcorpus/vert-tagextract/v3/db"
 	"github.com/czcorpus/vert-tagextract/v3/livetokens"
 	"github.com/czcorpus/vert-tagextract/v3/ud"
 	"github.com/rs/zerolog/log"
 )
 
+// frodoDBConf is a bit of a reverse dependency but for sake
+// of the ltgen tool, it is ok. We need this to be able to
+// load database configuration from Frodo's main configuration
+// so we don't have to extract and save the config somewhere
+// manually.
+type frodoDBConf struct {
+	LiveAttrs struct {
+		DB db.Conf `json:"db"`
+	} `json:"liveAttrs"`
+}
+
+func loadConfig(path, frodoConfPath string) (ltgConf, error) {
+
+	var conf ltgConf
+	// first, let's try vte conf:
+	tmpConf, err := cnf.LoadConf(path)
+	if err != nil {
+		return conf, fmt.Errorf("failed to load config: %w", err)
+	}
+	conf.CorpusID = tmpConf.Corpus
+	conf.Attrs = tmpConf.LiveTokens
+	conf.DB = tmpConf.DB
+	conf.VerticalPath = tmpConf.VerticalFile
+	if conf.VerticalPath == "" && len(conf.VerticalPath) > 0 {
+		conf.VerticalPath = tmpConf.VerticalFiles[0]
+	}
+	if len(conf.VerticalPath) > 1 {
+		log.Warn().Msg("vte conf defines more than one vertical file - only the first will be used")
+	}
+	if conf.CorpusID == "" { // probably a bad/empty conf, let's try custom subconf
+		tmpConf, err := LoadConf(path)
+		if err != nil {
+			return conf, fmt.Errorf("failed to load config: %w", err)
+		}
+		conf = tmpConf
+	}
+	if frodoConfPath != "" {
+		data, err := os.ReadFile(frodoConfPath)
+		if err != nil {
+			return conf, fmt.Errorf("failed to load config: %w", err)
+		}
+		var fConf frodoDBConf
+		if err := json.Unmarshal(data, &fConf); err != nil {
+			return conf, fmt.Errorf("failed to load config: %w", err)
+		}
+		conf.DB = fConf.LiveAttrs.DB
+	}
+	log.Info().
+		Str("hostname", conf.DB.Host).
+		Str("user", conf.DB.User).
+		Str("database", conf.DB.Name).
+		Msg("configured database")
+	return conf, nil
+}
+
 func runImport(args []string) {
 	importCmd := flag.NewFlagSet("import", flag.ExitOnError)
+	frodoConf := importCmd.String("frodo-conf", "", "a path to frodo configuration (used for db credentials)")
 	importCmd.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s import [options] <config-file> <vert-file>\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Import tokens from a vertical file into the database.\n\n")
@@ -46,9 +104,14 @@ func runImport(args []string) {
 		os.Exit(1)
 	}
 
-	conf, err := LoadConf(importCmd.Arg(0))
+	conf, err := loadConfig(importCmd.Arg(0), *frodoConf)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to run")
+		return
+	}
+
+	if importCmd.Arg(1) != "" {
+		conf.VerticalPath = importCmd.Arg(1)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -57,14 +120,17 @@ func runImport(args []string) {
 	db, err := livetokens.OpenDB(conf.DB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to run")
+		return
 	}
 
 	if err := livetokens.CreateTable(ctx, db, conf.CorpusID, conf.Attrs); err != nil {
 		log.Fatal().Err(err).Msg("failed to run")
+		return
 	}
 
-	if err := ParseFileUD(ctx, conf, db, importCmd.Arg(1)); err != nil {
-		fmt.Println("ERROR: ", err)
+	if err := ParseFileUD(ctx, conf, db); err != nil {
+		log.Fatal().Err(err).Msg("failed to run")
+		return
 	}
 }
 

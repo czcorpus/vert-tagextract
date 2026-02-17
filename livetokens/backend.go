@@ -77,9 +77,35 @@ func CreateTable(ctx context.Context, db *sql.DB, corpusID string, attrs []Attr)
 	}
 
 	if hasUDFeats {
-		fmt.Println("SQL: ", fmt.Sprintf(UDFeatsTableTpl, corpusID, corpusID))
 		if _, err := db.ExecContext(ctx, fmt.Sprintf(UDFeatsTableTpl, corpusID, corpusID)); err != nil {
 			return fmt.Errorf("failed to create _livetokens_udfeats table: %w", err)
+		}
+		// Index for EXISTS subqueries: WHERE f2.token_id = t.id AND f2.feat = ? AND f2.value = ?
+		if _, err := db.ExecContext(ctx, fmt.Sprintf(
+			"CREATE INDEX idx_%s_ltuf_tid_feat_val ON %s_livetokens_udfeats (token_id, feat, value)",
+			corpusID, corpusID,
+		)); err != nil {
+			return fmt.Errorf("failed to create udfeats token_id/feat/value index: %w", err)
+		}
+		// Index for SELECT DISTINCT f.feat, f.value ... ORDER BY f.feat, f.value
+		if _, err := db.ExecContext(ctx, fmt.Sprintf(
+			"CREATE INDEX idx_%s_ltuf_feat_val ON %s_livetokens_udfeats (feat, value)",
+			corpusID, corpusID,
+		)); err != nil {
+			return fmt.Errorf("failed to create udfeats feat/value index: %w", err)
+		}
+	}
+
+	// Create indexes on each attribute column for WHERE filtering in search queries
+	for _, attr := range attrs {
+		if attr.IsUDFeats {
+			continue
+		}
+		if _, err := db.ExecContext(ctx, fmt.Sprintf(
+			"CREATE INDEX idx_%s_lt_%s ON %s_livetokens (%s)",
+			corpusID, attr.Name, corpusID, attr.Name,
+		)); err != nil {
+			return fmt.Errorf("failed to create index on %s: %w", attr.Name, err)
 		}
 	}
 
