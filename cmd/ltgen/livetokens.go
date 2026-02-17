@@ -56,7 +56,7 @@ func loadConfig(path, frodoConfPath string) (ltgConf, error) {
 	conf.Attrs = tmpConf.LiveTokens
 	conf.DB = tmpConf.DB
 	conf.VerticalPath = tmpConf.VerticalFile
-	if conf.VerticalPath == "" && len(conf.VerticalPath) > 0 {
+	if conf.VerticalPath == "" && len(tmpConf.VerticalFiles) > 0 {
 		conf.VerticalPath = tmpConf.VerticalFiles[0]
 	}
 	if len(conf.VerticalPath) > 1 {
