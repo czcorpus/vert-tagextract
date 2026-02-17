@@ -91,15 +91,16 @@ func loadConfig(path, frodoConfPath string) (ltgConf, error) {
 func runImport(args []string) {
 	importCmd := flag.NewFlagSet("import", flag.ExitOnError)
 	frodoConf := importCmd.String("frodo-conf", "", "a path to frodo configuration (used for db credentials)")
+	vertFile := importCmd.String("vert-file", "", "a custom path to vertical file (normally, it is defined in vte conf)")
 	importCmd.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s import [options] <config-file> <vert-file>\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s import [options] <config-file>\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Import tokens from a vertical file into the database.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		importCmd.PrintDefaults()
 	}
 	importCmd.Parse(args)
 
-	if importCmd.NArg() < 2 {
+	if importCmd.NArg() < 1 {
 		importCmd.Usage()
 		os.Exit(1)
 	}
@@ -110,8 +111,8 @@ func runImport(args []string) {
 		return
 	}
 
-	if importCmd.Arg(1) != "" {
-		conf.VerticalPath = importCmd.Arg(1)
+	if *vertFile != "" {
+		conf.VerticalPath = *vertFile
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
