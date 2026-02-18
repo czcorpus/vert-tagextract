@@ -54,8 +54,6 @@ func LoadConf(path string) (ltgConf, error) {
 
 // -------
 
-// -------
-
 type AttrCombination []string
 
 func (ac AttrCombination) Key() string {

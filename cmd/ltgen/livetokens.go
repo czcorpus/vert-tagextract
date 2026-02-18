@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -40,46 +41,83 @@ import (
 // manually.
 type frodoDBConf struct {
 	LiveAttrs struct {
-		DB db.Conf `json:"db"`
+		DB                   db.Conf `json:"db"`
+		VerticalFilesDirPath string  `json:"verticalFilesDirPath"`
 	} `json:"liveAttrs"`
+}
+
+func cutLast(s, sep string) (before, after string, found bool) {
+	i := strings.LastIndex(s, sep)
+	if i > 0 {
+		return s[:i], s[i+len(sep):], true
+	}
+	return s, "", false
+}
+
+func determineVertical(conf *cnf.VTEConf, baseVertDir string) (verticalPath string, err error) {
+	verticalPath = conf.VerticalFile
+	if verticalPath == "" && len(conf.VerticalFiles) > 0 {
+		verticalPath = conf.VerticalFiles[0]
+		if len(conf.VerticalFiles) > 1 {
+			log.Warn().Msg("vte conf defines more than one vertical file - only the first will be used")
+		}
+	}
+	if verticalPath == "" {
+		log.Warn().Msg("vertical file not defined anywhere - let's try to find it")
+	}
+	corpGroup, x, found := cutLast(conf.Corpus, "_")
+	if !found {
+		err = fmt.Errorf("failed to auto-detect vertical path")
+		return
+	}
+	verticalPath = filepath.Join(baseVertDir, corpGroup, conf.Corpus)
+	log.Info().Str("path", verticalPath).Msg("suggesting vertical path")
+	return
 }
 
 func loadConfig(path, frodoConfPath string) (ltgConf, error) {
 
 	var conf ltgConf
-	// first, let's try vte conf:
-	tmpConf, err := cnf.LoadConf(path)
-	if err != nil {
-		return conf, fmt.Errorf("failed to load config: %w", err)
-	}
-	conf.CorpusID = tmpConf.Corpus
-	conf.Attrs = tmpConf.LiveTokens
-	conf.DB = tmpConf.DB
-	conf.VerticalPath = tmpConf.VerticalFile
-	if conf.VerticalPath == "" && len(tmpConf.VerticalFiles) > 0 {
-		conf.VerticalPath = tmpConf.VerticalFiles[0]
-	}
-	if len(conf.VerticalPath) > 1 {
-		log.Warn().Msg("vte conf defines more than one vertical file - only the first will be used")
-	}
-	if conf.CorpusID == "" { // probably a bad/empty conf, let's try custom subconf
-		tmpConf, err := LoadConf(path)
-		if err != nil {
-			return conf, fmt.Errorf("failed to load config: %w", err)
-		}
-		conf = tmpConf
-	}
+	var fConf frodoDBConf
+
 	if frodoConfPath != "" {
 		data, err := os.ReadFile(frodoConfPath)
 		if err != nil {
 			return conf, fmt.Errorf("failed to load config: %w", err)
 		}
-		var fConf frodoDBConf
 		if err := json.Unmarshal(data, &fConf); err != nil {
 			return conf, fmt.Errorf("failed to load config: %w", err)
 		}
+	}
+
+	// first, let's try vte conf:
+	vteConf, err := cnf.LoadConf(path)
+	if err != nil {
+		return conf, fmt.Errorf("failed to load config: %w", err)
+	}
+	conf.CorpusID = vteConf.Corpus
+	conf.Attrs = vteConf.LiveTokens
+	conf.DB = vteConf.DB
+
+	if conf.CorpusID == "" { // probably a bad/empty conf, let's try custom subconf
+		tmpLtgConf, err := LoadConf(path)
+		if err != nil {
+			return conf, fmt.Errorf("failed to load config: %w", err)
+		}
+		conf = tmpLtgConf
+		vteConf.Corpus = conf.CorpusID
+	}
+
+	vp, err := determineVertical(vteConf, fConf.LiveAttrs.VerticalFilesDirPath)
+	if err != nil {
+		return conf, fmt.Errorf("failed to load config: %w", err)
+	}
+	conf.VerticalPath = vp
+
+	if conf.DB.Host == "" && fConf.LiveAttrs.DB.Host != "" {
 		conf.DB = fConf.LiveAttrs.DB
 	}
+
 	log.Info().
 		Str("hostname", conf.DB.Host).
 		Str("user", conf.DB.User).
