@@ -22,6 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/czcorpus/vert-tagextract/v3/db"
@@ -72,6 +75,29 @@ func (ca CountedAttrs) Key() string {
 	return strings.Join(ca.Values, "|") + "|" + ca.Feats.Key()
 }
 
+var unparsedFeatsSrch = regexp.MustCompile(`^[a-zA-Z]+=[a-zA-Z]+(\|[a-zA-Z]+=[a-zA-Z]+)*$`)
+
+func (ca CountedAttrs) SeemsValid() bool {
+	if slices.ContainsFunc(ca.Values, func(v string) bool {
+		return unparsedFeatsSrch.MatchString(v)
+	}) {
+		return false
+	}
+	// Now let's check for tuples where
+	// only numbers (and possibly whitespaces) are.
+	// Such values are possibly wrong
+	for _, v := range ca.Values {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		_, err := strconv.Atoi(v)
+		if err != nil {
+			return true
+		}
+	}
+	return false
+}
+
 type LTUDGen struct {
 	ctx      context.Context
 	attrs    livetokens.AttrList
@@ -80,7 +106,7 @@ type LTUDGen struct {
 }
 
 func (ltg *LTUDGen) insertUDFeats(db *sql.Tx, data []ud.FeatList, idRange [2]int64) error {
-	fmt.Println("about to insert UD feats, data size: ", len(data), " id range: ", idRange)
+	log.Debug().Any("idRange", idRange).Int("dataSize", len(data)).Msg("about to insert UD feats")
 	currID := idRange[0]
 	for _, feats := range data {
 		values := make([][]any, 0, len(feats))
@@ -104,6 +130,10 @@ func (ltg *LTUDGen) StoreToDatabase(db *sql.Tx) error {
 	chunkDependentFeats := make([]ud.FeatList, chunkSize)
 	i := 0
 	for _, v := range ltg.data {
+		if !v.SeemsValid() {
+			log.Warn().Strs("values", v.Values).Msg("skipping possibly invalid entry")
+			continue
+		}
 		values := make([]any, ltg.attrs.LenWithoutUDFeats()+1) // +1 => `cnt` field
 		for i2, v2 := range v.Values {
 			values[i2] = v2
