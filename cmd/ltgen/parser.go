@@ -75,7 +75,7 @@ func (ca CountedAttrs) Key() string {
 	return strings.Join(ca.Values, "|") + "|" + ca.Feats.Key()
 }
 
-var unparsedFeatsSrch = regexp.MustCompile(`^[a-zA-Z]+=[a-zA-Z]+(\|[a-zA-Z]+=[a-zA-Z]+)*$`)
+var unparsedFeatsSrch = regexp.MustCompile(`^[a-zA-Z0-9]+=[a-zA-Z0-9]+(\|[a-zA-Z0-9]+=[a-zA-Z0-9]+)*$`)
 
 func (ca CountedAttrs) SeemsValid() bool {
 	if slices.ContainsFunc(ca.Values, func(v string) bool {
