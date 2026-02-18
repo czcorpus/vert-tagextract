@@ -65,7 +65,7 @@ func determineVertical(conf *cnf.VTEConf, baseVertDir string) (verticalPath stri
 	if verticalPath == "" {
 		log.Warn().Msg("vertical file not defined anywhere - let's try to find it")
 	}
-	corpGroup, x, found := cutLast(conf.Corpus, "_")
+	corpGroup, _, found := cutLast(conf.Corpus, "_")
 	if !found {
 		err = fmt.Errorf("failed to auto-detect vertical path")
 		return
