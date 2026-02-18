@@ -24,7 +24,6 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/czcorpus/vert-tagextract/v3/db"
@@ -75,7 +74,10 @@ func (ca CountedAttrs) Key() string {
 	return strings.Join(ca.Values, "|") + "|" + ca.Feats.Key()
 }
 
-var unparsedFeatsSrch = regexp.MustCompile(`^[a-zA-Z0-9]+=[a-zA-Z0-9]+(\|[a-zA-Z0-9]+=[a-zA-Z0-9]+)*$`)
+var (
+	unparsedFeatsSrch  = regexp.MustCompile(`^[a-zA-Z0-9]+=[a-zA-Z0-9]+(\|[a-zA-Z0-9]+=[a-zA-Z0-9]+)*$`)
+	pseudoNumericField = regexp.MustCompile(`[0-9]+(/[0-9]*)?`)
+)
 
 func (ca CountedAttrs) SeemsValid() bool {
 	if slices.ContainsFunc(ca.Values, func(v string) bool {
@@ -86,16 +88,18 @@ func (ca CountedAttrs) SeemsValid() bool {
 	// Now let's check for tuples where
 	// only numbers (and possibly whitespaces) are.
 	// Such values are possibly wrong
+	numEmpty := 0
 	for _, v := range ca.Values {
-		if strings.TrimSpace(v) == "" {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			numEmpty++
 			continue
 		}
-		_, err := strconv.Atoi(v)
-		if err != nil {
-			return true
+		if pseudoNumericField.MatchString(v) {
+			return false
 		}
 	}
-	return false
+	return numEmpty < len(ca.Values)
 }
 
 type LTUDGen struct {
