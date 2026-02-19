@@ -103,10 +103,11 @@ func (ca CountedAttrs) SeemsValid() bool {
 }
 
 type LTUDGen struct {
-	ctx      context.Context
-	attrs    livetokens.AttrList
-	corpname string
-	data     map[string]CountedAttrs
+	ctx         context.Context
+	attrs       livetokens.AttrList
+	corpname    string
+	data        map[string]CountedAttrs
+	numVertCols int
 }
 
 func (ltg *LTUDGen) insertUDFeats(db *sql.Tx, data []ud.FeatList, idRange [2]int64) error {
@@ -166,6 +167,18 @@ func (ltg *LTUDGen) StoreToDatabase(db *sql.Tx) error {
 }
 
 func (ltg *LTUDGen) ProcToken(tk *vertigo.Token, line int, err error) error {
+	if ltg.numVertCols != len(tk.Attrs) {
+		if ltg.numVertCols == 0 {
+			ltg.numVertCols = len(tk.Attrs)
+
+		} else {
+			log.Error().
+				Int("expectedCols", ltg.numVertCols).
+				Int("actualCols", len(tk.Attrs)).
+				Int("line", line).
+				Msg("reporting invalid vertical line")
+		}
+	}
 	var feats ud.FeatList
 	otherAttrs := make([]string, 0, len(ltg.attrs))
 	for _, attr := range ltg.attrs {
@@ -220,7 +233,7 @@ func ParseFileUD(ctx context.Context, conf ltgConf, db *sql.DB) error {
 	parserConf := &vertigo.ParserConf{
 		StructAttrAccumulator: "nil",
 		Encoding:              "utf-8",
-		LogProgressEachNth:    100000, // TODO configurable
+		LogProgressEachNth:    250000, // TODO configurable
 		InputFilePath:         conf.VerticalPath,
 	}
 
