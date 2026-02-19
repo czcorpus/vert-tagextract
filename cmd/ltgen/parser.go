@@ -65,9 +65,10 @@ func (ac AttrCombination) Key() string {
 // -----
 
 type CountedAttrs struct {
-	Values []string
-	Feats  ud.FeatList
-	Count  int
+	Values   []string
+	Feats    ud.FeatList
+	Count    int
+	LastLine int
 }
 
 func (ca CountedAttrs) Key() string {
@@ -76,7 +77,7 @@ func (ca CountedAttrs) Key() string {
 
 var (
 	unparsedFeatsSrch  = regexp.MustCompile(`^[a-zA-Z0-9]+=[a-zA-Z0-9]+(\|[a-zA-Z0-9]+=[a-zA-Z0-9]+)*$`)
-	pseudoNumericField = regexp.MustCompile(`[0-9]+(/[0-9]*)?`)
+	pseudoNumericField = regexp.MustCompile(`([-+]?[0-9]+(/[0-9]*)?`)
 )
 
 func (ca CountedAttrs) SeemsValid() bool {
@@ -136,7 +137,7 @@ func (ltg *LTUDGen) StoreToDatabase(db *sql.Tx) error {
 	i := 0
 	for _, v := range ltg.data {
 		if !v.SeemsValid() {
-			log.Warn().Strs("values", v.Values).Msg("skipping possibly invalid entry")
+			log.Warn().Strs("values", v.Values).Int("last-line", v.LastLine).Msg("skipping possibly invalid entry")
 			continue
 		}
 		values := make([]any, ltg.attrs.LenWithoutUDFeats()+1) // +1 => `cnt` field
@@ -197,9 +198,10 @@ func (ltg *LTUDGen) ProcToken(tk *vertigo.Token, line int, err error) error {
 	}
 	feats.Normalize()
 	newItem := CountedAttrs{
-		Values: otherAttrs,
-		Feats:  feats,
-		Count:  1,
+		Values:   otherAttrs,
+		Feats:    feats,
+		Count:    1,
+		LastLine: line,
 	}
 	niKey := newItem.Key()
 
@@ -209,6 +211,7 @@ func (ltg *LTUDGen) ProcToken(tk *vertigo.Token, line int, err error) error {
 
 	} else {
 		stored.Count++
+		stored.LastLine = line
 		ltg.data[niKey] = stored
 	}
 
