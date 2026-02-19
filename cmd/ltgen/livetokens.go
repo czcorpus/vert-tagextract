@@ -130,6 +130,7 @@ func runImport(args []string) {
 	importCmd := flag.NewFlagSet("import", flag.ExitOnError)
 	frodoConf := importCmd.String("frodo-conf", "", "a path to frodo configuration (used for db credentials)")
 	vertFile := importCmd.String("vert-file", "", "a custom path to vertical file (normally, it is defined in vte conf)")
+	dryRun := importCmd.Bool("dry-run", false, "if set then nothing will be stored to database and the current database won't be touched")
 	importCmd.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s import [options] <config-file>\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Import tokens from a vertical file into the database.\n\n")
@@ -156,20 +157,56 @@ func runImport(args []string) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	db, err := livetokens.OpenDB(conf.DB)
+	processor, err := ParseFileUD(ctx, conf)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to run")
 		return
 	}
 
-	if err := livetokens.CreateTable(ctx, db, conf.CorpusID, conf.Attrs); err != nil {
-		log.Fatal().Err(err).Msg("failed to run")
-		return
-	}
+	if *dryRun {
+		log.Warn().Msg("running in dry run mode - no changes in database will be performed")
+		for _, v := range processor.data {
+			i := 0
+			for _, at := range conf.Attrs {
+				if at.IsUDFeats {
+					continue
+				}
+				if i > 0 {
+					fmt.Print(", ")
+				}
+				if i < len(v.Values) {
+					fmt.Printf("%s=%s", at.Name, v.Values[i])
 
-	if err := ParseFileUD(ctx, conf, db); err != nil {
-		log.Fatal().Err(err).Msg("failed to run")
-		return
+				} else {
+					fmt.Printf("%s=??", at.Name)
+				}
+				i++
+			}
+			fmt.Printf(" (last line: %d)\n", v.LastLine)
+			fmt.Printf("feats: %s\n", v.Feats.Key())
+			fmt.Println()
+		}
+
+	} else {
+		db, err := livetokens.OpenDB(conf.DB)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to run")
+			return
+		}
+		if err := livetokens.CreateTable(ctx, db, conf.CorpusID, conf.Attrs); err != nil {
+			log.Fatal().Err(err).Msg("failed to run")
+			return
+		}
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to run ltgen")
+		}
+		if err := processor.StoreToDatabase(tx); err != nil {
+			log.Fatal().Err(err).Msg("failed to run ltgen")
+		}
+		if err := tx.Commit(); err != nil {
+			log.Fatal().Err(err).Msg("failed to run ltgen")
+		}
 	}
 }
 
