@@ -77,7 +77,7 @@ func (ca CountedAttrs) Key() string {
 
 var (
 	unparsedFeatsSrch  = regexp.MustCompile(`^[a-zA-Z0-9]+=[a-zA-Z0-9]+(\|[a-zA-Z0-9]+=[a-zA-Z0-9]+)*$`)
-	pseudoNumericField = regexp.MustCompile(`([-+]?[0-9]+(/[0-9]*)?`)
+	pseudoNumericField = regexp.MustCompile(`([-+])?[0-9]+(/[0-9]*)?`)
 )
 
 func (ca CountedAttrs) SeemsValid() bool {
