@@ -40,6 +40,7 @@ type ltgConf struct {
 	Attrs        livetokens.AttrList `json:"attrs"`
 	DB           db.Conf             `json:"db"`
 	VerticalPath string              `json:"verticalPath"`
+	DryRun       bool                `json:"dryRun"`
 }
 
 func LoadConf(path string) (ltgConf, error) {
@@ -232,19 +233,13 @@ func (ltg *LTUDGen) ProcStructClose(st *vertigo.StructureClose, line int, err er
 	return nil
 }
 
-func ParseFileUD(ctx context.Context, conf ltgConf, db *sql.DB) error {
+func ParseFileUD(ctx context.Context, conf ltgConf) (*LTUDGen, error) {
 	parserConf := &vertigo.ParserConf{
 		StructAttrAccumulator: "nil",
 		Encoding:              "utf-8",
 		LogProgressEachNth:    250000, // TODO configurable
 		InputFilePath:         conf.VerticalPath,
 	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to run ltgen+: %w", err)
-	}
-
 	proc := &LTUDGen{
 		corpname: conf.CorpusID,
 		ctx:      ctx,
@@ -254,15 +249,7 @@ func ParseFileUD(ctx context.Context, conf ltgConf, db *sql.DB) error {
 	log.Info().Msg("using zero-based indexing when reporting line errors")
 
 	if err := vertigo.ParseVerticalFile(ctx, parserConf, proc); err != nil {
-		return fmt.Errorf("failed to run ltgen: %w", err)
+		return nil, fmt.Errorf("failed to run ltgen: %w", err)
 	}
-
-	if err := proc.StoreToDatabase(tx); err != nil {
-		return fmt.Errorf("failed to run ltgen: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to run ltgen: %w", err)
-	}
-	return nil
+	return proc, nil
 }
