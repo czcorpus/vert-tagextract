@@ -248,7 +248,7 @@ func (s *Searcher) GetAvailableValues(
 			return ans, fmt.Errorf("failed to get available values for %s: %w", attr.Name, err)
 		}
 
-		var attrVals []string
+		attrVals := make([]string, 0, 20)
 		for rows.Next() {
 			var val sql.NullString
 			if err := rows.Scan(&val); err != nil {
