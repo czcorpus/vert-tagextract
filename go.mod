@@ -10,7 +10,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.8.4
-	github.com/tomachalek/vertigo/v6 v6.2.2
+	github.com/tomachalek/vertigo/v6 v6.3.0
 )
 
 require (

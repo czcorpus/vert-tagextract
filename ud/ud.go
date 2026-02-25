@@ -53,21 +53,26 @@ func (f FeatList) Key() string {
 	return ans.String()
 }
 
-func ParseFeats(s string) (FeatList, error) {
-	items := strings.Split(s, "|")
-	feats := make(FeatList, 0, len(items)+1) // +1 is for PoS added by the caller
-	for _, item := range items {
-		tmp := strings.SplitN(item, "=", 2)
-		if len(tmp) == 0 || item == "" {
-			return []Feat{}, nil
+func ParseFeats(s string) ([]FeatList, error) {
+	blocks := strings.Split(s, "||")
+	featBlocks := make([]FeatList, len(blocks))
+	for i, block := range blocks {
+		items := strings.Split(block, "|")
+		feats := make(FeatList, 0, len(items)+1) // +1 is for PoS added by the caller
+		for _, item := range items {
+			tmp := strings.SplitN(item, "=", 2)
+			if len(tmp) == 0 || item == "" {
+				return []FeatList{}, nil
+			}
+			if len(tmp) == 1 {
+				return []FeatList{}, fmt.Errorf("unparseable feature '%s'", item)
+			}
+			if tmp[0] == "_" {
+				continue
+			}
+			feats = append(feats, Feat{tmp[0], tmp[1]})
 		}
-		if len(tmp) == 1 {
-			return []Feat{}, fmt.Errorf("unparseable feature '%s'", item)
-		}
-		if tmp[0] == "_" {
-			continue
-		}
-		feats = append(feats, Feat{tmp[0], tmp[1]})
+		featBlocks[i] = feats
 	}
-	return feats, nil
+	return featBlocks, nil
 }

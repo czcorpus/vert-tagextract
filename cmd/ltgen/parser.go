@@ -181,7 +181,7 @@ func (ltg *LTUDGen) ProcToken(tk *vertigo.Token, line int, err error) error {
 				Msg("reporting invalid vertical line")
 		}
 	}
-	var feats ud.FeatList
+	var featsGroups []ud.FeatList
 	otherAttrs := make([]string, 0, len(ltg.attrs))
 	for _, attr := range ltg.attrs {
 		val := tk.PosAttrByIndex(attr.VertIdx)
@@ -191,29 +191,31 @@ func (ltg *LTUDGen) ProcToken(tk *vertigo.Token, line int, err error) error {
 				log.Warn().Err(err).Int("line", line).Msg("failed to parse UD feats, skipping")
 				continue
 			}
-			feats = attrs
+			featsGroups = attrs
 
 		} else {
 			otherAttrs = append(otherAttrs, val)
 		}
 	}
-	feats.Normalize()
-	newItem := CountedAttrs{
-		Values:   otherAttrs,
-		Feats:    feats,
-		Count:    1,
-		LastLine: line,
-	}
-	niKey := newItem.Key()
+	for _, feats := range featsGroups {
+		feats.Normalize()
+		newItem := CountedAttrs{
+			Values:   otherAttrs,
+			Feats:    feats,
+			Count:    1,
+			LastLine: line,
+		}
+		niKey := newItem.Key()
 
-	stored, ok := ltg.data[niKey]
-	if !ok {
-		ltg.data[niKey] = newItem
+		stored, ok := ltg.data[niKey]
+		if !ok {
+			ltg.data[niKey] = newItem
 
-	} else {
-		stored.Count++
-		stored.LastLine = line
-		ltg.data[niKey] = stored
+		} else {
+			stored.Count++
+			stored.LastLine = line
+			ltg.data[niKey] = stored
+		}
 	}
 
 	return nil
