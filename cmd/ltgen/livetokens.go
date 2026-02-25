@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/czcorpus/vert-tagextract/v3/cnf"
 	"github.com/czcorpus/vert-tagextract/v3/db"
@@ -156,12 +157,13 @@ func runImport(args []string) {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
+	t0 := time.Now()
 	processor, err := ParseFileUD(ctx, conf)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to run")
 		return
 	}
+	log.Info().Dur("parsingTime", time.Since(t0)).Msg("finished parsing, starting to import data")
 
 	if *dryRun {
 		log.Warn().Msg("running in dry run mode - no changes in database will be performed")
