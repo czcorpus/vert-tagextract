@@ -46,7 +46,7 @@ func determineLineReportingStep(filePaths []string) int {
 	var size int64
 	for _, filePath := range filePaths {
 		tmp := fs.FileSize(filePath)
-		tmp = int64(float64(size) * 0.02)
+		tmp = int64(float64(tmp) * 0.02)
 		if strings.HasSuffix(filePath, ".gz") || strings.HasSuffix(filePath, ".tgz") {
 			tmp *= 20
 		}
@@ -54,7 +54,7 @@ func determineLineReportingStep(filePaths []string) int {
 	}
 	step := 100
 	for ; step < 1000000000; step *= 10 {
-		if float64(size)/float64(step) < 10 {
+		if float64(size)/float64(step) < 1000 {
 			break
 		}
 	}
