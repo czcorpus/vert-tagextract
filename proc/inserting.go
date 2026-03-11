@@ -59,11 +59,20 @@ func hasInitialCap(s string) bool {
 
 // Status stores some basic information about vertical file processing
 type Status struct {
-	Datetime       time.Time
-	File           string
+	Datetime time.Time
+	File     string
+
+	// ProcessedAtoms stores number of processed "atom" structures
+	// (what is the atom structure is defined by user running the job)
 	ProcessedAtoms int
+
+	// ProcessedLines stores total number of vertical file lines processed
 	ProcessedLines int
-	Error          error
+
+	// ProcessedTokens stores total number of processed tokens so we are
+	// able to inform user about the actual size of the processed corpus
+	ProcessedTokens int
+	Error           error
 }
 
 // TTExtractor handles writing parsed data
@@ -163,10 +172,11 @@ func (tte *TTExtractor) GetColCounts() map[string]*ptcount.NgramCounter {
 // stop signal (but it's still up to the consumer).
 func (tte *TTExtractor) handleProcError(lineNum int, err error) error {
 	tte.statusChan <- Status{
-		Datetime:       time.Now(),
-		ProcessedAtoms: tte.atomCounter,
-		ProcessedLines: lineNum,
-		Error:          err,
+		Datetime:        time.Now(),
+		ProcessedAtoms:  tte.atomCounter,
+		ProcessedLines:  lineNum,
+		ProcessedTokens: tte.tokenCounter,
+		Error:           err,
 	}
 	log.Error().Err(err).Int("lineNumber", lineNum).Msg("parsing error")
 	tte.errorCounter++
@@ -211,9 +221,10 @@ func (tte *TTExtractor) ProcToken(tk *vertigo.Token, line int, err error) error 
 	}
 	if line%1000 == 0 {
 		tte.statusChan <- Status{
-			Datetime:       time.Now(),
-			ProcessedAtoms: tte.atomCounter,
-			ProcessedLines: line,
+			Datetime:        time.Now(),
+			ProcessedAtoms:  tte.atomCounter,
+			ProcessedTokens: tte.tokenCounter,
+			ProcessedLines:  line,
 		}
 	}
 	return nil
@@ -255,7 +266,8 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 	}
 
 	if st != nil {
-		if st.Name == tte.atomStruct {
+		switch st.Name {
+		case tte.atomStruct:
 			tte.lastAtomOpenLine = line
 			tte.tokenInAtomCounter = 0
 			attrs := tte.getCurrentAccumAttrs()
@@ -271,8 +283,7 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 					return tte.handleProcError(line, err4)
 				}
 			}
-
-		} else if st.Name == tte.atomParentStruct {
+		case tte.atomParentStruct:
 			attrs := tte.getCurrentAccumAttrs()
 			attrs["wordcount"] = 0 // This value is currently unused
 			attrs["poscount"] = 0  // This value is updated once we hit the closing tag
@@ -289,9 +300,10 @@ func (tte *TTExtractor) ProcStruct(st *vertigo.Structure, line int, err error) e
 	}
 	if line%1000 == 0 {
 		tte.statusChan <- Status{
-			Datetime:       time.Now(),
-			ProcessedAtoms: tte.atomCounter,
-			ProcessedLines: line,
+			Datetime:        time.Now(),
+			ProcessedAtoms:  tte.atomCounter,
+			ProcessedLines:  line,
+			ProcessedTokens: tte.tokenCounter,
 		}
 	}
 	return nil
@@ -343,9 +355,10 @@ func (tte *TTExtractor) ProcStructClose(st *vertigo.StructureClose, line int, er
 	}
 	if line%1000 == 0 {
 		tte.statusChan <- Status{
-			Datetime:       time.Now(),
-			ProcessedAtoms: tte.atomCounter,
-			ProcessedLines: line,
+			Datetime:        time.Now(),
+			ProcessedAtoms:  tte.atomCounter,
+			ProcessedLines:  line,
+			ProcessedTokens: tte.tokenCounter,
 		}
 	}
 	return nil
@@ -452,9 +465,10 @@ func (tte *TTExtractor) insertCounts() error {
 
 		if i > 0 && i%1000 == 0 {
 			tte.statusChan <- Status{
-				Datetime:       time.Now(),
-				ProcessedAtoms: tte.atomCounter,
-				ProcessedLines: tte.lineCounter,
+				Datetime:        time.Now(),
+				ProcessedAtoms:  tte.atomCounter,
+				ProcessedLines:  tte.lineCounter,
+				ProcessedTokens: tte.tokenCounter,
 			}
 			if i%100000 == 0 {
 				log.Info().
@@ -493,14 +507,15 @@ func (tte *TTExtractor) Run(filesToProc []string, encoding string, logProgressEa
 		return err
 	}
 	parserErr := vertigo.ParseVerticalFromScanner(tte.ctx, vertScanner, parserConf, tte)
+	tte.statusChan <- Status{
+		Datetime:        time.Now(),
+		Error:           parserErr,
+		ProcessedAtoms:  tte.atomCounter,
+		ProcessedLines:  tte.lineCounter,
+		ProcessedTokens: tte.tokenCounter,
+	}
 	if parserErr != nil {
 		tte.database.Rollback()
-		tte.statusChan <- Status{
-			Datetime:       time.Now(),
-			Error:          parserErr,
-			ProcessedAtoms: tte.atomCounter,
-			ProcessedLines: -1,
-		}
 		return fmt.Errorf("failed to parse vertical file: %s", parserErr)
 	}
 	if len(tte.ngramConf.VertColumns) > 0 {
