@@ -68,7 +68,10 @@ func (m ToLower) Transform(s string) string {
 type FirstChar struct{}
 
 func (m FirstChar) Transform(s string) string {
-	return s[:1]
+	if len(s) > 0 {
+		return s[:1]
+	}
+	return ""
 }
 
 type Identity struct{}

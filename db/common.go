@@ -208,7 +208,8 @@ func (attr DateAttr) RawValue() string {
 type Writer interface {
 	DatabaseExists() bool
 	Initialize(appendMode bool) error
-	PrepareInsert(table string, attrs []string) (InsertOperation, error)
+	PrepareInsert(tableNameSuff string, attrs []string) (InsertOperation, error)
+	Finalize() error
 
 	// RemoveRecordsOlderThan remove all the records with date less than
 	// the provided one using attr for comparison. Method should return

@@ -117,8 +117,7 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 		defer dbWriter.Close()
 		defer close(statusChan)
 
-		err := dbWriter.Initialize(appendData)
-		if err != nil {
+		if err := dbWriter.Initialize(appendData); err != nil {
 			sendErrStatus(statusChan, "", err)
 			return
 		}
@@ -163,14 +162,17 @@ func ExtractData(ctx context.Context, conf *cnf.VTEConf, appendData bool) (chan 
 		if err != nil {
 			sendErrStatus(statusChan, "", err)
 		}
-		err = tte.Run(filesToProc, conf.Encoding, determineLineReportingStep(filesToProc))
-		if err != nil {
+		if err := tte.Run(filesToProc, conf.Encoding, determineLineReportingStep(filesToProc)); err != nil {
 			sendErrStatus(statusChan, "", err)
+			return
 		}
-
-		err = dbWriter.Commit()
-		if err != nil {
+		if err := dbWriter.Commit(); err != nil {
 			sendErrStatus(statusChan, "", err)
+			return
+		}
+		if err := dbWriter.Finalize(); err != nil {
+			sendErrStatus(statusChan, "", err)
+			return
 		}
 	}()
 
