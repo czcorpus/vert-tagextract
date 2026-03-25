@@ -36,6 +36,10 @@ func (nw *NullWriter) Initialize(appendMode bool) error {
 	return fmt.Errorf("no valid database writer installed")
 }
 
+func (nw *NullWriter) Finalize() error {
+	return fmt.Errorf("no valid database writer installed")
+}
+
 func (nw *NullWriter) CreateSchema(
 	structures map[string][]string,
 	indexedCols []string,

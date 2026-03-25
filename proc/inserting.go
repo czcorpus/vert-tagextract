@@ -419,7 +419,7 @@ func (tte *TTExtractor) insertCounts() error {
 	colItems := append(
 		db.GenerateColCountNames(tte.ngramConf.VertColumns),
 		"corpus_id", "count", "arf", "hash_id", "initial_cap", "ngram_size")
-	ins, err := tte.database.PrepareInsert("colcounts", colItems)
+	ins, err := tte.database.PrepareInsert("colcounts_new", colItems)
 	if err != nil {
 		return nil
 	}
@@ -473,12 +473,28 @@ func (tte *TTExtractor) insertCounts() error {
 			if i%100000 == 0 {
 				log.Info().
 					Int("numProcessed", i).
-					Msg("next chunk of records processed")
+					Str("table", fmt.Sprintf("%s_colcounts_new", tte.corpusID)).
+					Msg("next chunk of records inserted")
 			}
 		}
 		i++
 	}
 	return nil
+}
+
+func (tte *TTExtractor) processSingleFile(conf vertigo.ParserConf, fileToProc string) error {
+	conf.InputFilePath = fileToProc
+	log.Info().Str("file", fileToProc).Msgf("Starting to process vertical file")
+	return vertigo.ParseVerticalFile(tte.ctx, &conf, tte)
+}
+
+func (tte *TTExtractor) processMultipleFiles(conf *vertigo.ParserConf, filesToProc []string) error {
+	vertScanner, err := NewMultiFileScanner(filesToProc...)
+	if err != nil {
+		return fmt.Errorf("failed to run TTExtractor: %w", err)
+	}
+	log.Info().Str("file", vertScanner.FilesID()).Msgf("Starting to process %d vertical files", len(filesToProc))
+	return vertigo.ParseVerticalFromScanner(tte.ctx, vertScanner, conf, tte)
 }
 
 // Run starts the parsing and metadata extraction
@@ -488,35 +504,41 @@ func (tte *TTExtractor) insertCounts() error {
 // makes sqlite3 inserts a few orders of magnitude
 // faster.
 func (tte *TTExtractor) Run(filesToProc []string, encoding string, logProgressEachNth int) error {
-	vertScanner, err := NewMultiFileScanner(filesToProc...)
-	if err != nil {
-		return fmt.Errorf("failed to run TTExtractor: %w", err)
-	}
+
 	parserConf := &vertigo.ParserConf{
 		StructAttrAccumulator: "nil",
 		Encoding:              encoding,
 		LogProgressEachNth:    logProgressEachNth,
 	}
-
 	log.Info().Msg("using zero-based indexing when reporting line errors")
-	log.Info().Str("file", vertScanner.FilesID()).Msg("Starting to process vertical file(s)")
 	tte.attrNames = tte.generateAttrList()
 
-	tte.docInsert, err = tte.database.PrepareInsert("liveattrs_entry", tte.attrNames)
+	var err error
+	tte.docInsert, err = tte.database.PrepareInsert("liveattrs_entry_new", tte.attrNames)
 	if err != nil {
 		return err
 	}
-	parserErr := vertigo.ParseVerticalFromScanner(tte.ctx, vertScanner, parserConf, tte)
+
+	if len(filesToProc) == 0 {
+		return errors.New("no files to process")
+
+	} else if len(filesToProc) == 1 {
+		err = tte.processSingleFile(*parserConf, filesToProc[0])
+
+	} else {
+		err = tte.processMultipleFiles(parserConf, filesToProc)
+	}
+
 	tte.statusChan <- Status{
 		Datetime:        time.Now(),
-		Error:           parserErr,
+		Error:           err,
 		ProcessedAtoms:  tte.atomCounter,
 		ProcessedLines:  tte.lineCounter,
 		ProcessedTokens: tte.tokenCounter,
 	}
-	if parserErr != nil {
+	if err != nil {
 		tte.database.Rollback()
-		return fmt.Errorf("failed to parse vertical file: %s", parserErr)
+		return fmt.Errorf("failed to parse vertical file(s): %s", err)
 	}
 	if len(tte.ngramConf.VertColumns) > 0 {
 		if tte.ngramConf.CalcARF {

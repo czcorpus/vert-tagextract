@@ -101,6 +101,10 @@ func (w *Writer) Initialize(appendMode bool) error {
 	return err
 }
 
+func (w *Writer) Finalize() error {
+	return nil // TODO
+}
+
 func (w *Writer) CreateBibView(cols []string, idAttr string) error {
 	return createBibView(w.database, cols, idAttr)
 }

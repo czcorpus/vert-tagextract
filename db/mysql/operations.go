@@ -27,38 +27,9 @@ import (
 )
 
 const (
-	laTableSuffix = "_liveattrs_entry"
+	laTableSuffix    = "_liveattrs_entry"
+	laTableSuffixTMP = "_liveattrs_entry_new"
 )
-
-// dropExisting drops existing tables/views.
-// It is safe to call this even if one or more of these does not exist.
-// Please note that the groupedCorpusName argument represents a derived corpus name
-// which is able to group multipe (aligned) corpora together.E.g. 'intercorp_v13_cs'
-// and 'intercorp_v13_en' will likely groupedName 'intercorp_v13'. For single corpora,
-// the groupedCorpusName is the same as the original one.
-func dropExisting(database *sql.DB, groupedCorpusName string) error {
-	log.Info().Msg("Attempting to drop possible existing tables and views...")
-	var err error
-	_, err = database.Exec("DROP TABLE IF EXISTS cache")
-	if err != nil {
-		return fmt.Errorf("failed to drop table 'cache': %s", err)
-	}
-	_, err = database.Exec(fmt.Sprintf("DROP VIEW IF EXISTS `%s_bibliography`", groupedCorpusName))
-	if err != nil {
-		return fmt.Errorf("failed to drop view `%s_bibliography`: %s", groupedCorpusName, err)
-	}
-	_, err = database.Exec(
-		fmt.Sprintf("DROP TABLE IF EXISTS `%s%s`", groupedCorpusName, laTableSuffix))
-	if err != nil {
-		return fmt.Errorf("failed to drop table '%s%s': %s", groupedCorpusName, laTableSuffix, err)
-	}
-	_, err = database.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s_colcounts`", groupedCorpusName))
-	if err != nil {
-		return fmt.Errorf("failed to drop table `%s_colcounts`: %s", groupedCorpusName, err)
-	}
-	log.Info().Msg("...DONE")
-	return nil
-}
 
 // generateColNames produces a list of structural
 // attribute names as used in database
@@ -97,24 +68,6 @@ func generateAuxColDefs(hasSelfJoin bool) []string {
 	return ans
 }
 
-func createAuxIndices(database *sql.DB, groupedCorpusName string, cols []string) error {
-	var err error
-	for _, c := range cols {
-		_, err = database.Exec(
-			fmt.Sprintf("CREATE INDEX `%s_%s_idx` ON `%s%s`(%s)",
-				groupedCorpusName, c, groupedCorpusName, laTableSuffix, c))
-		if err != nil {
-			return err
-		}
-		log.Info().
-			Str("index", fmt.Sprintf(`%s_%s_idx`, groupedCorpusName, c)).
-			Str("table", groupedCorpusName+laTableSuffix).
-			Str("column", c).
-			Msg("Created custom database index")
-	}
-	return nil
-}
-
 // generateViewColDefs creates definitions for
 // bibliography view
 func generateViewColDefs(cols []string, idAttr string) []string {
@@ -143,12 +96,34 @@ func createBibView(database *sql.DB, groupedCorpusName string, cols []string, id
 	return nil
 }
 
-// createSchema creates all the required tables, views and indices
+func testBibViewExists(
+	database *sql.DB,
+	dbName string,
+	groupedCorpusName string,
+) (bool, error) {
+	row := database.QueryRow(
+		"SELECT COUNT(*) "+
+			"FROM information_schema.views "+
+			"WHERE table_schema = ? "+
+			"AND table_name = ? ",
+		dbName,
+		groupedCorpusName+"_bibliography",
+	)
+	var cnt int
+	if err := row.Scan(&cnt); err != nil {
+		return false, fmt.Errorf("failed to determine bib view existence: %w", err)
+	}
+	return cnt == 1, nil
+}
+
+// createSchema creates all the required tables, views and indices. It defines tables
+// with name containing the _new suffix so a possible current production table is still
+// operational. Once everything is done, the tables are expected to be renamed to their
+// final production name replacing the old ones.
 func createSchema(
 	database *sql.DB,
 	groupedCorpusName string,
 	structures map[string][]string,
-	indexedCols []string,
 	useSelfJoin bool,
 	countColumns db.VertColumns,
 ) error {
@@ -165,28 +140,13 @@ func createSchema(
 		fmt.Sprintf(
 			"CREATE TABLE `%s%s` (id INTEGER PRIMARY KEY auto_increment, %s) ENGINE=InnoDB ROW_FORMAT=DYNAMIC",
 			groupedCorpusName,
-			laTableSuffix,
+			laTableSuffixTMP,
 			joinArgs(allCollsDefs),
 		),
 	)
 	if dbErr != nil {
 		return fmt.Errorf(
-			"failed to create table '%s%s': %s", groupedCorpusName, laTableSuffix, dbErr)
-	}
-
-	if useSelfJoin {
-		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE UNIQUE INDEX `%s%s_item_id_corpus_id_idx` ON `%s%s`(item_id, corpus_id)",
-			groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffix))
-		if dbErr != nil {
-			return fmt.Errorf(
-				"failed to create index `%s%s_item_id_corpus_id_idx` on `%s%s`(item_id, corpus_id): %s",
-				groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffix, dbErr)
-		}
-	}
-	dbErr = createAuxIndices(database, groupedCorpusName, indexedCols)
-	if dbErr != nil {
-		return fmt.Errorf("failed to create a custom index: %s", dbErr)
+			"failed to create table '%s%s': %s", groupedCorpusName, laTableSuffixTMP, dbErr)
 	}
 
 	if len(countColumns) > 0 {
@@ -195,7 +155,7 @@ func createSchema(
 			colDefs[i] = c + fmt.Sprintf(" VARCHAR(%d) COLLATE utf8mb4_general_ci", db.DfltColcountVarcharSize)
 		}
 		_, dbErr = database.Exec(fmt.Sprintf(
-			"CREATE TABLE %s_colcounts ("+
+			"CREATE TABLE %s_colcounts_new ("+
 				"%s, hash_id VARCHAR(40), corpus_id VARCHAR(%d), "+
 				"count INTEGER, arf FLOAT, initial_cap TINYINT NOT NULL DEFAULT 0, "+
 				"ngram_size TINYINT NOT NULL, "+
@@ -205,24 +165,95 @@ func createSchema(
 		if dbErr != nil {
 			return fmt.Errorf("failed to create table '%s_colcounts': %s", groupedCorpusName, dbErr)
 		}
-		indexName := fmt.Sprintf("%s_colcounts_corpus_id_idx", groupedCorpusName)
-		indexTarget := fmt.Sprintf("%s_colcounts(corpus_id)", groupedCorpusName)
-		log.Debug().Str("indexName", indexName).Msg("creating index")
-		_, dbErr = database.Exec(fmt.Sprintf("CREATE INDEX %s ON %s", indexName, indexTarget))
-		if dbErr != nil {
-			return fmt.Errorf(
-				"failed to create index %s on %s: %s", indexName, indexTarget, dbErr)
-		}
-		indexName = fmt.Sprintf("%s_colcounts_ngram_size_idx", groupedCorpusName)
-		indexTarget = fmt.Sprintf("%s_colcounts(ngram_size)", groupedCorpusName)
-		log.Debug().Str("indexName", indexName).Msg("creating index")
-		_, dbErr = database.Exec(fmt.Sprintf("CREATE INDEX %s ON %s", indexName, indexTarget))
-		if dbErr != nil {
-			return fmt.Errorf(
-				"failed to create index %s on %s: %s",
-				indexName, indexTarget, dbErr)
-		}
 	}
 	log.Info().Msg("Finished creating colcounts table and its indexes")
 	return nil
+}
+
+// createIndexes generates indexes on the final tables
+func createIndexes(
+	database *sql.DB,
+	groupedCorpusName string,
+	indexedCols []string,
+	useSelfJoin bool,
+	useCountColumns bool,
+) error {
+	if useSelfJoin {
+		if _, err := database.Exec(fmt.Sprintf(
+			"CREATE UNIQUE INDEX `%s%s_item_id_corpus_id_idx` ON `%s%s`(item_id, corpus_id)",
+			groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffixTMP)); err != nil {
+			return fmt.Errorf(
+				"failed to create index `%s%s_item_id_corpus_id_idx` on `%s%s`(item_id, corpus_id): %s",
+				groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffixTMP, err)
+		}
+	}
+
+	if useCountColumns {
+		indexName := fmt.Sprintf("%s_colcounts_corpus_id_idx", groupedCorpusName)
+		indexTarget := fmt.Sprintf("%s_colcounts_new(corpus_id)", groupedCorpusName)
+		log.Debug().Str("indexName", indexName).Msg("creating index")
+		if _, err := database.Exec(fmt.Sprintf("CREATE INDEX %s ON %s", indexName, indexTarget)); err != nil {
+			return fmt.Errorf(
+				"failed to create index %s on %s: %s", indexName, indexTarget, err)
+		}
+		indexName = fmt.Sprintf("%s_colcounts_ngram_size_idx", groupedCorpusName)
+		indexTarget = fmt.Sprintf("%s_colcounts_new(ngram_size)", groupedCorpusName)
+		log.Debug().Str("indexName", indexName).Msg("creating index")
+		if _, err := database.Exec(fmt.Sprintf("CREATE INDEX %s ON %s", indexName, indexTarget)); err != nil {
+			return fmt.Errorf(
+				"failed to create index %s on %s: %s",
+				indexName, indexTarget, err)
+		}
+	}
+	// auxiliary indexes
+	for _, c := range indexedCols {
+		_, err := database.Exec(
+			fmt.Sprintf("CREATE INDEX `%s_%s_idx` ON `%s%s`(%s)",
+				groupedCorpusName, c, groupedCorpusName, laTableSuffixTMP, c))
+		if err != nil {
+			return err
+		}
+		log.Info().
+			Str("index", fmt.Sprintf(`%s_%s_idx`, groupedCorpusName, c)).
+			Str("table", groupedCorpusName+laTableSuffix).
+			Str("column", c).
+			Msg("Created custom database index")
+	}
+	return nil
+}
+
+func copyPrevDataToTmp(tx *sql.Tx, groupedCorpusName string) error {
+	if _, err := tx.Exec(
+		fmt.Sprintf(
+			"INSERT INTO %s_liveattrs_entry_new SELECT * FROM %s_liveattrs_entry",
+			groupedCorpusName,
+			groupedCorpusName,
+		),
+	); err != nil {
+		return fmt.Errorf("failed to copy previous data to the working _new table (append mode): %w", err)
+	}
+	return nil
+}
+
+func testTmpTablesExist(
+	database *sql.DB,
+	dbName string,
+	groupedCorpusName string,
+) (bool, error) {
+	row := database.QueryRow(
+		fmt.Sprintf(
+			"SELECT TABLE_NAME FROM information_schema.TABLES "+
+				"WHERE TABLE_SCHEMA = ? "+
+				" AND TABLE_NAME IN ('%s_colcounts_new', '%s_liveattrs_entry_new') "+
+				" LIMIT 1",
+			groupedCorpusName,
+			groupedCorpusName,
+		),
+		dbName,
+	)
+	var tn string
+	if err := row.Scan(&tn); err != nil && err != sql.ErrNoRows {
+		return false, fmt.Errorf("failed to check for working _new tables: %w", err)
+	}
+	return tn != "", nil
 }
