@@ -168,6 +168,35 @@ func (ltg *LTUDGen) StoreToDatabase(db *sql.Tx) error {
 	return nil
 }
 
+// SplitOtherAttrs takes a list of multi-values (= strings with | as separator)
+// and generates all the combinations of values at each position. E.g.:
+// a1|a2|a3 and b1|b2|b3 should produce: [ [a1, b1], [a2, b2], [a3, b3] ].
+// In case the multivalues are of different item sizes, the result uses the
+// longest value and the missing pieces are empty strings.
+func (ltg *LTUDGen) SplitOtherAttrs(values []string) [][]string {
+	splitItems := make([][]string, len(values))
+	var longest int
+	for i, value := range values {
+		splitItems[i] = strings.Split(value, "|")
+		if len(splitItems[i]) > longest {
+			longest = len(splitItems[i])
+		}
+	}
+	combinationSrc := make([][]string, longest)
+	for i := range combinationSrc {
+		combinationSrc[i] = make([]string, len(values))
+	}
+
+	for i := 0; i < longest; i++ {
+		for j, items := range splitItems {
+			if i < len(items) {
+				combinationSrc[i][j] = items[i]
+			}
+		}
+	}
+	return combinationSrc
+}
+
 func (ltg *LTUDGen) ProcToken(tk *vertigo.Token, line int, err error) error {
 	if ltg.numVertCols != len(tk.Attrs) {
 		if ltg.numVertCols == 0 {
@@ -199,22 +228,25 @@ func (ltg *LTUDGen) ProcToken(tk *vertigo.Token, line int, err error) error {
 	}
 	for _, feats := range featsGroups {
 		feats.Normalize()
-		newItem := CountedAttrs{
-			Values:   otherAttrs,
-			Feats:    feats,
-			Count:    1,
-			LastLine: line,
-		}
-		niKey := newItem.Key()
 
-		stored, ok := ltg.data[niKey]
-		if !ok {
-			ltg.data[niKey] = newItem
+		for _, splitOtherAttrs := range ltg.SplitOtherAttrs(otherAttrs) {
+			newItem := CountedAttrs{
+				Values:   splitOtherAttrs,
+				Feats:    feats,
+				Count:    1,
+				LastLine: line,
+			}
+			niKey := newItem.Key()
 
-		} else {
-			stored.Count++
-			stored.LastLine = line
-			ltg.data[niKey] = stored
+			stored, ok := ltg.data[niKey]
+			if !ok {
+				ltg.data[niKey] = newItem
+
+			} else {
+				stored.Count++
+				stored.LastLine = line
+				ltg.data[niKey] = stored
+			}
 		}
 	}
 
