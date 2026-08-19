@@ -170,6 +170,41 @@ func createSchema(
 	return nil
 }
 
+// removeDuplicateItemCorpusRows checks whether the working table contains
+// multiple rows sharing the same (item_id, corpus_id) pair (which would make
+// creating a unique index on these columns fail) and, if so, removes the
+// redundant rows, keeping only the one with the lowest id for each pair.
+func removeDuplicateItemCorpusRows(database *sql.DB, groupedCorpusName string) error {
+	table := fmt.Sprintf("%s%s", groupedCorpusName, laTableSuffixTMP)
+
+	var numDuplicateKeys int
+	row := database.QueryRow(fmt.Sprintf(
+		"SELECT COUNT(*) FROM (SELECT item_id, corpus_id FROM `%s` "+
+			"GROUP BY item_id, corpus_id HAVING COUNT(*) > 1) AS dups",
+		table,
+	))
+	if err := row.Scan(&numDuplicateKeys); err != nil {
+		return fmt.Errorf("failed to check for duplicate item_id/corpus_id entries in `%s`: %w", table, err)
+	}
+	if numDuplicateKeys == 0 {
+		return nil
+	}
+
+	log.Warn().
+		Int("numDuplicateKeys", numDuplicateKeys).
+		Str("table", table).
+		Msg("found duplicate (item_id, corpus_id) entries, removing redundant rows")
+
+	if _, err := database.Exec(fmt.Sprintf(
+		"DELETE t1 FROM `%s` AS t1 INNER JOIN `%s` AS t2 "+
+			"ON t1.item_id = t2.item_id AND t1.corpus_id = t2.corpus_id AND t1.id > t2.id",
+		table, table,
+	)); err != nil {
+		return fmt.Errorf("failed to remove duplicate item_id/corpus_id rows from `%s`: %w", table, err)
+	}
+	return nil
+}
+
 // createIndexes generates indexes on the final tables
 func createIndexes(
 	database *sql.DB,
@@ -179,6 +214,9 @@ func createIndexes(
 	useCountColumns bool,
 ) error {
 	if useSelfJoin {
+		if err := removeDuplicateItemCorpusRows(database, groupedCorpusName); err != nil {
+			return err
+		}
 		if _, err := database.Exec(fmt.Sprintf(
 			"CREATE UNIQUE INDEX `%s%s_item_id_corpus_id_idx` ON `%s%s`(item_id, corpus_id)",
 			groupedCorpusName, laTableSuffix, groupedCorpusName, laTableSuffixTMP)); err != nil {
