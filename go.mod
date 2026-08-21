@@ -5,10 +5,11 @@ go 1.22.0
 toolchain go1.23.4
 
 require (
+	github.com/czcorpus/rexplorer v0.1.3
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/rs/zerolog v1.33.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/tomachalek/vertigo/v6 v6.3.0
 )
 
